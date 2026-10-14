@@ -43,19 +43,22 @@ export default function SystemPage() {
     costs: null as CostTotals | null,
   });
   const [readiness, setReadiness] = useState<AiReadiness | null>(null);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [usageRes, summaryRes, readyRes] = await Promise.all([
+      const [usageRes, summaryRes, readyRes, storageRes] = await Promise.all([
         analyticsAPI.getTokenUsage(range),
         analyticsAPI.getTokenSummary({ start: range.start, end: range.end }),
         analyticsAPI.getAiReadiness(),
+        analyticsAPI.getStorageStatus().catch(() => ({ data: null })),
       ]);
       setTokenUsage(usageRes.data?.data || []);
       if (summaryRes.data) setTokenSummary(summaryRes.data);
       setReadiness(readyRes.data || null);
+      setStorageStatus(storageRes.data || null);
     } catch (error) {
       console.error("Failed to fetch token data:", error);
     } finally {
@@ -157,6 +160,7 @@ export default function SystemPage() {
       </div>
 
       {readiness && <ReadinessCard readiness={readiness} />}
+      {storageStatus && <StorageCard status={storageStatus} />}
 
       <Card>
         <CardContent className="p-4 flex flex-wrap items-end gap-3" data-testid="usage-range">
@@ -405,6 +409,41 @@ function ReadinessCard({ readiness }: { readiness: AiReadiness }) {
         </div>
         <p className="text-xs text-[#546E7A]">Requires: {readiness.permissions_required.join(", ")}. Re-checked by the server at every paid
           call, including background processing.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface StorageStatus { backend: string; configured: boolean; issue: string | null; private: boolean;
+  link_ttl_seconds: number; pending_uploads: number; pending_deletions: number; failing_deletions: number }
+
+/** Where CV files are kept and whether uploads/deletions are waiting (counts only). */
+function StorageCard({ status }: { status: StorageStatus }) {
+  return (
+    <Card data-testid="storage-status">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>CV storage</CardTitle>
+        <span className={`text-xs px-2 py-1 rounded ${status.configured ? "bg-[#00C853]/20 text-[#00C853]" : "bg-yellow-500/20 text-yellow-300"}`}>
+          {status.backend === "cloudinary" ? "Private cloud (Cloudinary)" : "Local disk"}</span>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+        <div className="p-3 bg-[#132F4C] rounded-lg">
+          <p className="text-[#B0BEC5]">Access</p>
+          <p className="text-white font-medium">{status.private ? `Signed links, valid ${status.link_ttl_seconds} s`
+            : "Streamed by the server after sign-in"}</p>
+          {status.issue && <p className="text-xs text-yellow-300">{status.issue}</p>}
+        </div>
+        <div className="p-3 bg-[#132F4C] rounded-lg">
+          <p className="text-[#B0BEC5]">Unfinished uploads</p>
+          <p className="text-white font-medium">{status.pending_uploads}</p>
+          <p className="text-xs text-[#546E7A]">Completed by the next import of the same file</p>
+        </div>
+        <div className="p-3 bg-[#132F4C] rounded-lg">
+          <p className="text-[#B0BEC5]">Files waiting to be deleted</p>
+          <p className={status.failing_deletions ? "text-yellow-300 font-medium" : "text-white font-medium"}>
+            {status.pending_deletions}{status.failing_deletions ? ` (${status.failing_deletions} retrying)` : ""}</p>
+          <p className="text-xs text-[#546E7A]">Deleted after the records; retried while storage is unavailable</p>
+        </div>
       </CardContent>
     </Card>
   );

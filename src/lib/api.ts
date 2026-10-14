@@ -92,6 +92,7 @@ export const candidatesAPI = {
   retry: (candidateId: string) => api.post(`/candidates/${candidateId}/retry`),
   reassess: (candidateId: string) => api.post(`/candidates/${candidateId}/reassess`),
   downloadCV: (candidateId: string) => api.get(`/candidates/${candidateId}/cv`, { responseType: "blob" }),
+  cvLink: (candidateId: string) => api.get<CvLink>(`/candidates/${candidateId}/cv/link`),
   /** Queue every pending CV of the job for AI extraction and matching. */
   parseAndScore: (jobId: string) => api.post(`/jobs/${jobId}/process`),
   /** Headhunted applications: attach an HR-supplied CV (no AI call) and request the paid AI analysis. */
@@ -142,6 +143,7 @@ export const poolAPI = {
   updateNote: (noteId: string, body: string) => api.patch(`/pool/notes/${noteId}`, { body }),
   deleteNote: (noteId: string) => api.delete(`/pool/notes/${noteId}`),
   downloadDocument: (documentId: string) => api.get(`/pool/documents/${documentId}/file`, { responseType: "blob" }),
+  documentLink: (documentId: string) => api.get<CvLink>(`/pool/documents/${documentId}/link`),
   retryDocument: (documentId: string) => api.post(`/pool/documents/${documentId}/retry`),
   dismissReview: (reviewId: string) => api.post(`/pool/identity-reviews/${reviewId}/dismiss`),
   mergeReview: (reviewId: string, keepCandidateId: string) =>
@@ -214,6 +216,7 @@ export const analyticsAPI = {
     api.get("/analytics/token-usage", { params: typeof range === "string" ? { period: range } : range }),
   getTokenSummary: (range?: { start?: string; end?: string }) => api.get("/analytics/token-summary", { params: range || {} }),
   getAiReadiness: (headhunted = false) => api.get("/analytics/ai-readiness", { params: { headhunted } }),
+  getStorageStatus: () => api.get("/analytics/storage-status"),
   getRecentActivity: (limit = 10) => api.get("/analytics/recent-activity", { params: { limit } }),
   getScoreDistribution: () => api.get("/analytics/score-distribution"),
 };
@@ -253,8 +256,22 @@ function openBlob(blob: Blob, filename?: string | null) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/** Authorised access to a stored CV: private cloud files come as a short-lived signed link (opened directly);
+ *  local files are streamed by the backend ("stream"); external links are opened as they are. */
+export interface CvLink { mode: "link" | "stream" | "external"; url: string | null; expires_at: number | null;
+  filename: string | null }
+
+function openSignedLink(link: CvLink): boolean {
+  if ((link.mode === "link" || link.mode === "external") && link.url) {
+    window.open(link.url, "_blank", "noopener");
+    return true;
+  }
+  return false;
+}
+
 /** Open (PDF) or download (DOCX) an original CV version from the pool, with authentication. */
 export async function openPoolDocument(documentId: string, filename?: string | null, download = false) {
+  if (openSignedLink((await poolAPI.documentLink(documentId)).data)) return;
   const response = await poolAPI.downloadDocument(documentId);
   const blob: Blob = response.data;
   if (download) {
@@ -273,6 +290,7 @@ export async function openPoolDocument(documentId: string, filename?: string | n
 
 /** Open a CV in a new tab (PDF) or download it (DOCX) using the authenticated API. */
 export async function openCandidateCV(candidateId: string, filename?: string | null) {
+  if (openSignedLink((await candidatesAPI.cvLink(candidateId)).data)) return;
   const response = await candidatesAPI.downloadCV(candidateId);
   const blob: Blob = response.data;
   const url = URL.createObjectURL(blob);
