@@ -214,6 +214,11 @@ export default function HeadhuntingRunPage() {
           <div>
             <h2 className="text-lg font-semibold text-white">Prospects ({prospects.length})</h2>
             <p className="text-xs text-[#B0BEC5]">Every prospect stays visible – including &quot;indicated&quot; ones. HR decides; nothing is rejected automatically. No one has been contacted.</p>
+            {run && run.mode !== "ai" && (
+              <p className="text-xs text-[#00C853] mt-1" data-testid="free-run-review-hint">
+                Free run: requirements are only &quot;indicated&quot; or &quot;unknown&quot; – never &quot;supported&quot;.
+                Open each prospect and check that every indicated excerpt is about this person and this requirement.</p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-1 text-sm text-[#B0BEC5]">
