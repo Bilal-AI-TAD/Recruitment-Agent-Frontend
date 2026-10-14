@@ -180,7 +180,7 @@ export interface ActivityItem {
   reserved_usd?: number | null;
 }
 
-export type ProcessingStatus = "pending" | "processing" | "completed" | "failed" | "duplicate"
+export type ProcessingStatus = "pending" | "queued" | "processing" | "completed" | "failed" | "duplicate"
   | "awaiting_cv" | "awaiting_analysis";
 
 export interface CVImportResult {

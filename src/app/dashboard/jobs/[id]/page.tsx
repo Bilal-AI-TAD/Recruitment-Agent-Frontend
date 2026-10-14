@@ -66,7 +66,8 @@ export default function JobDetailPage() {
     Promise.all([loadJob(), loadRanking()]).finally(() => setIsLoading(false));
   }, [loadJob, loadRanking]);
 
-  const inProgress = (ranking?.status_counts?.pending || 0) + (ranking?.status_counts?.processing || 0);
+  const inProgress = (ranking?.status_counts?.pending || 0) + (ranking?.status_counts?.queued || 0)
+    + (ranking?.status_counts?.processing || 0);
   const pendingCount = ranking?.status_counts?.pending || 0;
 
   // Keep the list fresh while CVs are being processed in the background.

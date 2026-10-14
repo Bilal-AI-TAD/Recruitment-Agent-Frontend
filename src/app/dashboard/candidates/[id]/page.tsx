@@ -181,7 +181,7 @@ export default function CandidateDetailPage() {
 
   // Refresh while the CV is still being processed.
   useEffect(() => {
-    if (data?.processing_status !== "pending" && data?.processing_status !== "processing") return;
+    if (!["pending", "queued", "processing"].includes(data?.processing_status || "")) return;
     const timer = setInterval(load, 3000);
     return () => clearInterval(timer);
   }, [data?.processing_status, load]);
@@ -381,7 +381,7 @@ export default function CandidateDetailPage() {
               <div className="text-center py-6">
                 <ScoreBadge score={null} />
                 <p className="text-[#B0BEC5] text-sm mt-2">
-                  {data.processing_status === "pending" || data.processing_status === "processing"
+                  {["pending", "queued", "processing"].includes(data.processing_status)
                     ? "The CV is being processed. This page refreshes automatically."
                     : data.processing_status === "awaiting_cv" ? "CV required for analysis – no AI assessment without a CV."
                       : data.processing_status === "awaiting_analysis" ? "Not analysed yet – start the AI analysis above (paid)."

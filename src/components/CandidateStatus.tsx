@@ -6,6 +6,7 @@ const STATUS_STYLES: Record<ProcessingStatus, { label: string; className: string
   completed: { label: "Assessed", className: "bg-[#00C853]/20 text-[#00C853]" },
   processing: { label: "Processing", className: "bg-blue-500/20 text-blue-300" },
   pending: { label: "Pending", className: "bg-[#B0BEC5]/20 text-[#B0BEC5]" },
+  queued: { label: "Queued for analysis", className: "bg-blue-500/10 text-blue-300" },
   failed: { label: "Failed", className: "bg-[#FF5252]/20 text-[#FF5252]" },
   duplicate: { label: "Duplicate", className: "bg-yellow-500/20 text-yellow-300" },
   awaiting_cv: { label: "CV required for analysis", className: "bg-[#546E7A]/20 text-[#B0BEC5]" },

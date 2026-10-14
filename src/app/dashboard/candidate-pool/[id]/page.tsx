@@ -80,7 +80,7 @@ export default function PoolCandidatePage() {
   useEffect(() => {
     if (!data) return;
     const running = data.documents.some((d) => d.extraction_status === "processing" || d.extraction_status === "pending")
-      || data.applications.some((a) => a.processing_status === "processing" || a.processing_status === "pending");
+      || data.applications.some((a) => ["pending", "queued", "processing"].includes(a.processing_status));
     if (!running) return;
     const t = setInterval(load, 3000);
     return () => clearInterval(t);

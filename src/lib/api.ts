@@ -1,7 +1,9 @@
 import axios from "axios";
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v3";
+  process.env.NEXT_PUBLIC_API_BASE_URL
+  // The local fallback exists only for development; production builds require the variable (next.config.ts).
+  || (process.env.NODE_ENV === "production" ? "" : "http://localhost:8000/api/v3");
 
 const api = axios.create({ baseURL: API_BASE_URL });
 

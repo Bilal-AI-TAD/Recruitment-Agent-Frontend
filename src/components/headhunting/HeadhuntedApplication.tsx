@@ -62,7 +62,7 @@ export function HeadhuntedApplication({ data, onChanged }: { data: CandidateAsse
   const provenance = data.headhunting?.provenance || [];
   const blockers = state?.blockers || [];
   const latest = state?.requests?.[0];
-  const running = data.processing_status === "pending" || data.processing_status === "processing";
+  const running = ["pending", "queued", "processing"].includes(data.processing_status);
   return (
     <Card className="space-y-4" aria-label="Headhunting provenance and analysis">
       <div className="flex items-center justify-between flex-wrap gap-2">
