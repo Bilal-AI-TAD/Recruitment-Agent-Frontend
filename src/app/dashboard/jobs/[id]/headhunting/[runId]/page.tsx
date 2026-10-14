@@ -138,7 +138,7 @@ export default function HeadhuntingRunPage() {
     <div className="space-y-6">
       <Toaster position="top-right" />
       {selected && <ProspectDetail prospectId={selected} jobId={jobId} onClose={closeDetail}
-        onDeleted={() => { setSelected(null); load(); }} />}
+        onDeleted={() => { setSelected(null); load(); }} onChanged={load} />}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <button onClick={() => router.push(`/dashboard/jobs/${jobId}`)} aria-label="Back to job"
@@ -265,6 +265,7 @@ export default function HeadhuntingRunPage() {
                         <span className="px-2 py-0.5 rounded-full text-xs bg-[#132F4C] text-[#B0BEC5]">{p.profile_type.replace(/_/g, " ")}</span>
                         {p.source_kinds.map((k) => <span key={k} className="px-2 py-0.5 rounded-full text-xs bg-[#0A1929] text-[#B0BEC5]">{SOURCE_KIND[k] || k}</span>)}
                         <span className="px-2 py-0.5 rounded-full text-xs bg-[#0A1929] text-[#546E7A]">{p.assessment_method === "llm" ? "AI assessed" : "rules diagnostic"}</span>
+                        {p.in_pool && <span className="px-2 py-0.5 rounded-full text-xs bg-[#00C853]/15 text-[#00C853]" data-testid="in-pool">In Candidate Pool</span>}
                       </div>
                     </td>
                     <td className="py-3 pr-3 min-w-[220px]">

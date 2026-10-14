@@ -72,6 +72,15 @@ export const candidatesAPI = {
   downloadCV: (candidateId: string) => api.get(`/candidates/${candidateId}/cv`, { responseType: "blob" }),
   /** Queue every pending CV of the job for AI extraction and matching. */
   parseAndScore: (jobId: string) => api.post(`/jobs/${jobId}/process`),
+  /** Headhunted applications: attach an HR-supplied CV (no AI call) and request the paid AI analysis. */
+  attachCV: (candidateId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post(`/candidates/${candidateId}/cv`, form, { headers: { "Content-Type": "multipart/form-data" } });
+  },
+  analysis: (candidateId: string) => api.get(`/candidates/${candidateId}/analysis`),
+  requestAnalysis: (candidateId: string) =>
+    api.post(`/candidates/${candidateId}/analysis`, { client_request_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) }),
   getScoresByJob: (jobId: string) => api.get(`/jobs/${jobId}/ranking`),
 };
 
@@ -105,8 +114,8 @@ export const poolAPI = {
     api.delete(`/pool/candidates/${poolCandidateId}`, { params: { with_applications: withApplications } }),
   setCurrentDocument: (poolCandidateId: string, documentId: string) =>
     api.post(`/pool/candidates/${poolCandidateId}/current-document`, { document_id: documentId }),
-  addNote: (poolCandidateId: string, body: string, jobId?: string | null) =>
-    api.post(`/pool/candidates/${poolCandidateId}/notes`, { body, job_id: jobId || null }),
+  addNote: (poolCandidateId: string, body: string, jobId?: string | null, kind: "note" | "contact" = "note") =>
+    api.post(`/pool/candidates/${poolCandidateId}/notes`, { body, job_id: jobId || null, kind }),
   updateNote: (noteId: string, body: string) => api.patch(`/pool/notes/${noteId}`, { body }),
   deleteNote: (noteId: string) => api.delete(`/pool/notes/${noteId}`),
   downloadDocument: (documentId: string) => api.get(`/pool/documents/${documentId}/file`, { responseType: "blob" }),
@@ -161,6 +170,8 @@ export const headhuntingAPI = {
   review: (jobId: string, data: { canonical_url: string; status: string; note?: string | null }) =>
     api.put(`/headhunting/jobs/${jobId}/reviews`, data),
   retention: (prospectId: string) => api.get(`/headhunting/prospects/${prospectId}/retention`),
+  recruitment: (prospectId: string) => api.get(`/headhunting/prospects/${prospectId}/recruitment`),
+  addToRecruitment: (prospectId: string) => api.post(`/headhunting/prospects/${prospectId}/recruitment`, {}),
   extend: (jobId: string, data: { canonical_url: string; days: number; reason_code: string; note?: string | null }) =>
     api.post(`/headhunting/jobs/${jobId}/retention/extend`, data),
   deleteNow: (data: { canonical_url: string; reason_code: string; suppress: boolean }) =>

@@ -9,6 +9,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge, scoreColor } from "@/components/CandidateStatus";
+import { HeadhuntedApplication } from "@/components/headhunting/HeadhuntedApplication";
 import { candidatesAPI, openCandidateCV, scheduleAPI } from "@/lib/api";
 import { getErrorMessage, INTERVIEW_FEATURES_ENABLED } from "@/lib/utils";
 import { CandidateAssessment } from "@/types";
@@ -263,12 +264,12 @@ export default function CandidateDetailPage() {
               <FileText size={16} className="mr-2" /> View Original CV
             </Button>
           )}
-          {data.processing_status === "failed" && data.has_resume && (
+          {data.processing_status === "failed" && data.has_resume && data.added_via !== "headhunting" && (
             <Button variant="outline" isLoading={busy === "retry"} onClick={() => run("retry", () => candidatesAPI.retry(data.candidate_id), "Retry queued")}>
               <RotateCcw size={16} className="mr-2" /> Retry Processing
             </Button>
           )}
-          {data.processing_status === "completed" && (
+          {data.processing_status === "completed" && data.added_via !== "headhunting" && (
             <Button variant="outline" isLoading={busy === "reassess"} onClick={() => run("reassess", () => candidatesAPI.reassess(data.candidate_id), "Re-assessment queued")}>
               <RotateCcw size={16} className="mr-2" /> Re-assess
             </Button>
@@ -293,6 +294,8 @@ export default function CandidateDetailPage() {
       {data.processing_error && (
         <div className="bg-[#FF5252]/10 border border-[#FF5252]/30 rounded-lg p-3 text-sm text-[#FF8A80]">{data.processing_error}</div>
       )}
+
+      {data.added_via === "headhunting" && <HeadhuntedApplication data={data} onChanged={load} />}
 
       <p className="flex items-start gap-2 text-xs text-[#B0BEC5]">
         <Info size={14} className="mt-0.5 flex-shrink-0" />
@@ -375,7 +378,9 @@ export default function CandidateDetailPage() {
                 <p className="text-[#B0BEC5] text-sm mt-2">
                   {data.processing_status === "pending" || data.processing_status === "processing"
                     ? "The CV is being processed. This page refreshes automatically."
-                    : "No assessment available."}
+                    : data.processing_status === "awaiting_cv" ? "CV required for analysis – no AI assessment without a CV."
+                      : data.processing_status === "awaiting_analysis" ? "Not analysed yet – start the AI analysis above (paid)."
+                        : "No assessment available."}
                 </p>
               </div>
             )}

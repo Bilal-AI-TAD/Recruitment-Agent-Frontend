@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { HHClaim, HHProspectDetail } from "@/types";
 import { DISAGREEMENT, DisclaimerBanner, SOURCE_KIND, StatusChip, prospectLabel } from "./HeadhuntingBits";
 import { RetentionPanel } from "./RetentionPanel";
+import { AddToRecruitment } from "./AddToRecruitment";
 
 function claimText(claim: HHClaim | null | undefined) {
   if (!claim?.value) return "unknown";
@@ -26,8 +27,8 @@ function SideBySide({ label, rules, ai }: { label: string; rules: string; ai: st
   );
 }
 
-export function ProspectDetail({ prospectId, jobId, onClose, onDeleted }: {
-  prospectId: string; jobId: string; onClose: () => void; onDeleted: () => void;
+export function ProspectDetail({ prospectId, jobId, onClose, onDeleted, onChanged }: {
+  prospectId: string; jobId: string; onClose: () => void; onDeleted: () => void; onChanged?: () => void;
 }) {
   const [data, setData] = useState<HHProspectDetail | null>(null);
 
@@ -96,6 +97,7 @@ export function ProspectDetail({ prospectId, jobId, onClose, onDeleted }: {
               <button onClick={onClose} className="text-[#B0BEC5] hover:text-white" aria-label="Close"><X size={20} /></button>
             </div>
             <DisclaimerBanner disclaimers={data.disclaimers} />
+            <AddToRecruitment prospectId={prospectId} onChanged={onChanged} />
             <RetentionPanel prospectId={prospectId} jobId={jobId} canonicalUrl={data.canonical_url} onDeleted={onDeleted} />
 
             <section>

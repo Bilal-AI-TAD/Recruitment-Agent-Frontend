@@ -303,6 +303,9 @@ export default function JobDetailPage() {
                         {candidate.added_via === "pool" && (
                           <span className="px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-300">From pool</span>
                         )}
+                        {candidate.added_via === "headhunting" && (
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-[#00C853]/15 text-[#00C853]" data-testid="from-headhunting">From headhunting</span>
+                        )}
                         {candidate.added_via === "gmail" && (
                           <span className="px-2 py-0.5 rounded-full text-xs bg-purple-500/15 text-purple-300"
                             title={candidate.gmail ? `E-mail "${candidate.gmail.subject || ""}" from ${candidate.gmail.sender_name || candidate.gmail.sender_email || "unknown sender"}${candidate.gmail.forwarded_from_email ? ` (forwarded from ${candidate.gmail.forwarded_from_email})` : ""}. The sender is not necessarily the candidate.` : undefined}>

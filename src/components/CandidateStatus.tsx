@@ -8,6 +8,8 @@ const STATUS_STYLES: Record<ProcessingStatus, { label: string; className: string
   pending: { label: "Pending", className: "bg-[#B0BEC5]/20 text-[#B0BEC5]" },
   failed: { label: "Failed", className: "bg-[#FF5252]/20 text-[#FF5252]" },
   duplicate: { label: "Duplicate", className: "bg-yellow-500/20 text-yellow-300" },
+  awaiting_cv: { label: "CV required for analysis", className: "bg-[#546E7A]/20 text-[#B0BEC5]" },
+  awaiting_analysis: { label: "Ready for AI analysis", className: "bg-purple-500/20 text-purple-300" },
 };
 
 export function StatusBadge({ status }: { status: ProcessingStatus }) {

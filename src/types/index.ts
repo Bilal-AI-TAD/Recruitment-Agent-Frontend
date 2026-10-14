@@ -175,7 +175,8 @@ export interface ActivityItem {
   job_id?: string;
 }
 
-export type ProcessingStatus = "pending" | "processing" | "completed" | "failed" | "duplicate";
+export type ProcessingStatus = "pending" | "processing" | "completed" | "failed" | "duplicate"
+  | "awaiting_cv" | "awaiting_analysis";
 
 export interface CVImportResult {
   filename: string;
@@ -264,7 +265,7 @@ interface CandidateCore {
   shortlist: boolean;
   created_at?: string | null;
   pool_candidate_id?: string | null;
-  added_via?: "upload" | "pool" | "manual" | "gmail";
+  added_via?: "upload" | "pool" | "manual" | "gmail" | "headhunting";
   cv_version?: number | null;
   profile_version?: number | null;
 }
@@ -302,6 +303,9 @@ export interface CandidateAssessment extends CandidateCore {
   job_title?: string | null;
   profile: Record<string, unknown> | null;
   assessment: Assessment | null;
+  cv_required?: boolean;
+  headhunting?: { provenance: ExternalProfile[]; open_identity_reviews: number; analysis_requests: AnalysisRequestInfo[];
+                  cv_name_mismatch?: { cv_name: string; profile_name: string; message: string } | null };
 }
 
 // ---------------------------------------------------------------------------- Candidate Pool
@@ -451,8 +455,64 @@ export interface PoolNote {
   author_user_id: string | null;
   author_name: string | null;
   job_id: string | null;
+  kind?: "note" | "contact";
   created_at: string | null;
   updated_at: string | null;
+}
+
+/** Provenance of a pool person found by headhunting (public profile; not a CV). */
+export interface ExternalProfile {
+  link_id: string;
+  source: string;
+  canonical_url: string;
+  profile_type: string | null;
+  display_name: string | null;
+  headline: string | null;
+  added_at: string | null;
+  origin: { job_id?: string; run_id?: string; prospect_id?: string; run_mode?: string | null; run_finished_at?: string | null };
+  evidence: {
+    label?: string;
+    captured_at?: string;
+    search_sources?: { title: string | null; snippet: string | null; url: string | null; engine: string | null; retrieved_at: string | null; queries?: number }[];
+    fetched_sources?: { url: string; source_kind: string; outcome: string; retrieved_at: string | null; sha256: string | null;
+                        excerpts: { label: string; text: string }[] }[];
+    requirements?: { requirement: string; status: HHRequirementStatus; basis: string | null; activity: string | null;
+                     excerpts: { source_kind: string; text: string }[] }[];
+    assessment?: { method: string | null; prompt_version: string | null; model: string | null };
+  };
+}
+
+export interface AnalysisRequestInfo {
+  request_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  reserved_usd: number;
+  spent_usd: number | null;
+  llm_calls: number;
+  error: string | null;
+  created_at: string | null;
+  finished_at: string | null;
+}
+
+export interface AnalysisState {
+  candidate_id: string;
+  added_via: string | null;
+  processing_status: ProcessingStatus;
+  processing_error: string | null;
+  cv_required: boolean;
+  blockers: { code: string; message: string }[];
+  max_cost_usd: number;
+  requests: AnalysisRequestInfo[];
+}
+
+export interface RecruitmentStatus {
+  status: "new" | "already_added" | "url_match" | "possible_matches";
+  pool_candidate: { pool_candidate_id: string; display_name: string | null; has_cv: boolean } | null;
+  application: { candidate_id: string; processing_status: ProcessingStatus } | null;
+  url_matches: { pool_candidate_id: string; display_name: string | null; has_cv: boolean; name_compatible: boolean | null }[];
+  name_matches: { pool_candidate_id: string; display_name: string | null; has_cv: boolean }[];
+  can_add: boolean;
+  job_open: boolean;
+  retention_note: string;
 }
 
 export interface PoolCandidateDetail {
@@ -485,6 +545,7 @@ export interface PoolCandidateDetail {
   notes: PoolNote[];
   identity_reviews: { review_id: string; reason: string; evidence: Record<string, unknown> | null;
                       other_candidate_id: string; other_name: string | null; created_at: string | null }[];
+  external_profiles?: ExternalProfile[];
 }
 
 // ---------------------------------------------------------------------------- Gmail import
@@ -720,6 +781,7 @@ export interface HHProspect {
   disagreements: string[];
   review: { status: HHReviewStatus; note: string | null; reviewed_at: string | null };
   retention: HHRetentionBrief;
+  in_pool?: string | null;
 }
 
 export interface HHRetentionBrief {

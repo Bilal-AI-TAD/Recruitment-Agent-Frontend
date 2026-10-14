@@ -50,6 +50,7 @@ export default function PoolCandidatePage() {
   const [data, setData] = useState<PoolCandidateDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteDraft, setNoteDraft] = useState("");
+  const [noteKind, setNoteKind] = useState<"note" | "contact">("note");
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -324,8 +325,28 @@ export default function PoolCandidatePage() {
         </Card>
 
         <div className="lg:col-span-2 space-y-6">
+          {(data.external_profiles || []).length > 0 && (
+            <Card aria-label="Headhunting provenance">
+              <h2 className="text-white font-semibold mb-1">Found by Headhunting</h2>
+              <p className="text-xs text-[#B0BEC5] mb-2">Public-profile evidence captured when HR added this person. Not a CV; not verified.
+                This person has not applied, and the app has not contacted them.</p>
+              {data.external_profiles!.map((p) => (
+                <div key={p.link_id} className="text-xs space-y-1 mb-2" data-testid="pool-provenance">
+                  <a href={p.canonical_url} target="_blank" rel="noopener noreferrer" className="text-[#00C853] hover:underline break-all">{p.canonical_url}</a>
+                  {p.headline && <p className="text-[#B0BEC5]">{p.headline}</p>}
+                  <p className="text-[#546E7A]">Added {formatDate(p.added_at)}
+                    {p.origin.job_id && p.origin.run_id && <> · <Link className="text-[#00C853] hover:underline"
+                      href={`/dashboard/jobs/${p.origin.job_id}/headhunting/${p.origin.run_id}`}>headhunting run</Link></>}</p>
+                  {(p.evidence.search_sources || []).slice(0, 2).map((src, i) => (
+                    <p key={i} className="text-[#B0BEC5]"><span className="px-1.5 py-0.5 mr-1 rounded bg-[#0A1929]">Search snippet</span>{src.snippet}</p>
+                  ))}
+                </div>
+              ))}
+            </Card>
+          )}
           <Card>
             <h2 className="text-white font-semibold mb-3">CV versions</h2>
+            {data.documents.length === 0 && <p className="text-sm text-[#B0BEC5]">No CV yet. AI job analysis needs a CV.</p>}
             <ul className="space-y-3">
               {data.documents.map((doc) => (
                 <DocumentItem key={doc.document_id} doc={doc} busy={busy}
@@ -377,7 +398,8 @@ export default function PoolCandidatePage() {
                       <StatusBadge status={a.processing_status} />
                       {a.shortlist && <span className="inline-flex items-center gap-1 text-yellow-300"><Star size={12} /> Shortlisted</span>}
                       {!a.job_open && <span>Job closed</span>}
-                      <span>{a.added_via === "pool" ? "Added from pool" : "Uploaded"} {formatDate(a.added_at)}</span>
+                      <span>{a.added_via === "pool" ? "Added from pool" : a.added_via === "headhunting" ? "Added from headhunting"
+                        : a.added_via === "gmail" ? "From Gmail" : "Uploaded"} {formatDate(a.added_at)}</span>
                       {a.assessment?.cv_version && <span>· CV v{a.assessment.cv_version}</span>}
                     </div>
                     {a.assessment?.stale_reasons?.length ? (
@@ -392,13 +414,25 @@ export default function PoolCandidatePage() {
           </Card>
 
           <Card>
-            <h2 className="text-white font-semibold mb-3 flex items-center gap-2"><StickyNote size={18} /> HR notes</h2>
+            <h2 className="text-white font-semibold mb-3 flex items-center gap-2"><StickyNote size={18} /> HR notes and contact history</h2>
+            <div className="mb-2 text-xs" data-testid="contact-history">
+              <p className="text-white">Contact history</p>
+              {data.notes.filter((n: PoolNote) => n.kind === "contact").length === 0
+                ? <p className="text-[#546E7A]">No contact recorded. The app never contacts candidates; record contacts made outside it below.</p>
+                : data.notes.filter((n: PoolNote) => n.kind === "contact").map((n: PoolNote) =>
+                  <p key={n.note_id} className="text-[#B0BEC5]">{formatDate(n.created_at)} – {n.body}</p>)}
+            </div>
             <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} rows={3} maxLength={5000}
               placeholder="Add a note (visible to all HR users)…"
               className="w-full bg-[#132F4C] border border-[#2A3F5E] rounded-lg px-3 py-2 text-white text-sm placeholder-[#546E7A]" />
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-end items-center gap-2 mt-2">
+              <select aria-label="Note type" value={noteKind} onChange={(e) => setNoteKind(e.target.value as "note" | "contact")}
+                className="bg-[#132F4C] border border-[#2A3F5E] rounded-lg text-xs text-white px-2 py-1">
+                <option value="note">Note</option>
+                <option value="contact">Contact made (outside the app)</option>
+              </select>
               <Button size="sm" disabled={!noteDraft.trim()} isLoading={busy === "note"}
-                onClick={() => run("note", async () => { await poolAPI.addNote(data.pool_candidate_id, noteDraft.trim()); setNoteDraft(""); }, "Note saved")}>
+                onClick={() => run("note", async () => { await poolAPI.addNote(data.pool_candidate_id, noteDraft.trim(), null, noteKind); setNoteDraft(""); }, "Note saved")}>
                 Save note
               </Button>
             </div>
@@ -417,7 +451,7 @@ export default function PoolCandidatePage() {
                     </>
                   ) : (
                     <>
-                      <p className="text-[#E0E0E0] whitespace-pre-line">{n.body}</p>
+                      <p className="text-[#E0E0E0] whitespace-pre-line">{n.kind === "contact" && <span className="mr-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 text-xs">Contact</span>}{n.body}</p>
                       <div className="flex items-center justify-between mt-1 text-xs text-[#546E7A]">
                         <span>{n.author_name || "Unknown"} · {formatDate(n.created_at)}{n.updated_at && n.updated_at !== n.created_at ? " (edited)" : ""}</span>
                         {user && String((user as { user_id?: string }).user_id) === n.author_user_id && (
