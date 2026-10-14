@@ -64,13 +64,16 @@ function requestId() {
 }
 
 /**
- * Historical Gmail search for one job: choose a mailbox and period, review the title/subject
- * variations, preview matching application e-mails and import the selected CV attachments.
+ * Historical mailbox search (Gmail or the company Outlook mailbox): choose a mailbox and period, review the
+ * title/subject variations, preview matching application e-mails and import the selected CV attachments.
+ * With a job, imported CVs become applications for it; without one (Candidate Pool) they are only added to the
+ * pool - associating them with a job is a separate, explicit step there.
  * Nothing is imported until HR selects attachments; the e-mail text is shown as plain text.
  */
 export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImported }: {
-  jobId: string; jobTitle: string; initialRunId?: string | null; onClose: () => void; onImported: () => void;
+  jobId?: string | null; jobTitle?: string; initialRunId?: string | null; onClose: () => void; onImported: () => void;
 }) {
+  const poolOnly = !jobId;
   const [connections, setConnections] = useState<GmailConnection[] | null>(null);
   const [connectionId, setConnectionId] = useState("");
   const [period, setPeriod] = useState<"all" | "range">("all");
@@ -95,6 +98,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       setConnections(usable);
       if (usable.length) setConnectionId(usable[0].connection_id);
     }).catch((err) => { toast.error(getErrorMessage(err, "Could not load mailboxes")); setConnections([]); });
+    if (!jobId) return;                       // pool search: HR types the job titles to look for
     gmailAPI.variants(jobId).then((res) => {
       const v = res.data as GmailVariants;
       setVariants(v);
@@ -125,6 +129,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
   }, [run, loadRun, onImported]);
 
   const regenerate = async () => {
+    if (!jobId) return;
     setBusy("variants");
     try {
       const res = await gmailAPI.regenerateVariants(jobId);
@@ -160,12 +165,12 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       "imported until you select attachments. Continue?")) return;
     setBusy(mode);
     try {
-      if (edited) {
+      if (edited && jobId) {
         await gmailAPI.saveVariants(jobId, list);
         setEdited(false);
       }
       const res = await gmailAPI.search({
-        connection_id: connectionId, job_id: jobId, variants: list, mode, confirm_broad: mode === "broad",
+        connection_id: connectionId, job_id: jobId || null, variants: list, mode, confirm_broad: mode === "broad",
         ...(period === "range" ? { date_from: dateFrom, date_to: dateTo } : {}),
       });
       const data = res.data as GmailSearchResponse;
@@ -174,7 +179,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       setSelected({});
       if (!data.results.length) toast("No matching e-mails with CV attachments in this period.");
     } catch (err) {
-      toast.error(getErrorMessage(err, "Gmail search failed"));
+      toast.error(getErrorMessage(err, "Mailbox search failed"));
     } finally {
       setBusy(null);
     }
@@ -198,7 +203,8 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     }
   };
 
-  const selectable = (a: GmailAttachmentPreview) => a.supported && a.import_status !== "in_job";
+  const doneStatus = poolOnly ? "in_pool" as const : "in_job" as const;
+  const selectable = (a: GmailAttachmentPreview) => a.supported && a.import_status !== doneStatus;
   const toggle = (messageId: string, partId: string) => setSelected((prev) => {
     const next = { ...prev };
     const parts = new Set(next[messageId] || []);
@@ -251,11 +257,13 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} onClick={(e) => e.stopPropagation()}
         className="bg-[#1a2a3a] border border-[#2A3F5E] rounded-2xl p-6 w-full max-w-4xl max-h-[92vh] flex flex-col"
-        role="dialog" aria-label="Import CVs from Gmail">
+        role="dialog" aria-label="Import CVs from a mailbox">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 className="text-xl font-semibold text-white flex items-center gap-2"><Mail size={20} className="text-[#00C853]" /> Import CVs from Gmail</h2>
-            <p className="text-sm text-[#B0BEC5]">{jobTitle} · read-only: nothing in the mailbox is changed</p>
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2"><Mail size={20} className="text-[#00C853]" /> Import CVs from a mailbox</h2>
+            <p className="text-sm text-[#B0BEC5]">
+              {poolOnly ? "Candidate Pool only – not added to any job" : jobTitle} · nothing in the mailbox is changed
+            </p>
           </div>
           <button onClick={onClose} className="text-[#B0BEC5] hover:text-white" aria-label="Close"><X size={22} /></button>
         </div>
@@ -267,10 +275,10 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                 const done = new Set((run.items || []).filter((i) => i.status === "imported" || i.status === "duplicate")
                   .map((i) => `${i.message_id}/${i.part_id}`));
                 setResults((prev) => prev.map((r) => ({ ...r, attachments: r.attachments.map((a) =>
-                  done.has(`${r.message_id}/${a.part_id}`) ? { ...a, import_status: "in_job" as const } : a) })));
+                  done.has(`${r.message_id}/${a.part_id}`) ? { ...a, import_status: doneStatus } : a) })));
                 setSelected({});
                 setRun(null);
-              }} canSearchAgain={!!search} />
+              }} canSearchAgain={!!search} poolOnly={poolOnly} />
           ) : (
             <>
               <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -285,7 +293,8 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                     <select className={cn(inputClass, "w-full")} value={connectionId} onChange={(e) => setConnectionId(e.target.value)}>
                       {connections.map((c) => (
                         <option key={c.connection_id} value={c.connection_id}>
-                          {c.mailbox_email}{c.is_owner ? "" : ` (shared by ${c.owner_name || "a colleague"})`}
+                          {c.provider === "outlook" ? "Outlook · " : "Gmail · "}{c.mailbox_email}
+                          {c.is_owner ? "" : ` (shared by ${c.owner_name || "a colleague"})`}
                         </option>
                       ))}
                     </select>
@@ -308,20 +317,22 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
 
               <section>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <label className="text-xs text-[#B0BEC5]">Job-title and subject variations</label>
+                  <label className="text-xs text-[#B0BEC5]">{poolOnly ? "Job titles to look for in subjects" : "Job-title and subject variations"}</label>
                   <div className="flex items-center gap-2">
-                    {variants && (
+                    {variants && !poolOnly && (
                       <span className="text-xs text-[#546E7A] flex items-center gap-1">
                         <Sparkles size={12} /> {variants.source === "ai" ? "Suggested by AI" : "Built by local rules (AI unavailable)"}
                         {variants.edited || edited ? " · edited by HR" : ""}
                       </span>
                     )}
-                    <Button size="sm" variant="ghost" onClick={regenerate} isLoading={busy === "variants"}>
-                      <RefreshCw size={14} className="mr-1" /> Regenerate
-                    </Button>
+                    {!poolOnly && (
+                      <Button size="sm" variant="ghost" onClick={regenerate} isLoading={busy === "variants"}>
+                        <RefreshCw size={14} className="mr-1" /> Regenerate
+                      </Button>
+                    )}
                   </div>
                 </div>
-                {!variants ? <p className="text-sm text-[#B0BEC5]"><Loader2 size={14} className="inline animate-spin mr-1" /> Preparing variations…</p> : (
+                {!variants && !poolOnly ? <p className="text-sm text-[#B0BEC5]"><Loader2 size={14} className="inline animate-spin mr-1" /> Preparing variations…</p> : (
                   <>
                     <div className="flex flex-wrap gap-2">
                       {list.map((v) => (
@@ -333,12 +344,13 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                       ))}
                     </div>
                     <div className="flex gap-2 mt-2">
-                      <input className={cn(inputClass, "flex-1")} placeholder="Add a variation, e.g. Application for the position of …"
+                      <input className={cn(inputClass, "flex-1")} aria-label="Add a job title"
+                        placeholder={poolOnly ? "Add a job title, e.g. Warehouse Supervisor" : "Add a variation, e.g. Application for the position of …"}
                         value={newVariant} maxLength={80} onChange={(e) => setNewVariant(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") addVariant(newVariant); }} />
                       <Button size="sm" variant="secondary" onClick={() => addVariant(newVariant)}><Plus size={14} /></Button>
                     </div>
-                    {variants.rejected.length > 0 && (
+                    {variants && variants.rejected.length > 0 && (
                       <p className="text-xs text-[#546E7A] mt-2">
                         Not added – may be a different role:{" "}
                         {variants.rejected.filter((r) => !list.includes(r.variant)).map((r) => (
@@ -348,15 +360,15 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                       </p>
                     )}
                     <p className="text-xs text-[#546E7A] mt-2">
-                      Gmail is asked only for e-mails with a PDF or DOCX attachment whose subject contains these title words.
+                      The mailbox is asked only for e-mails with a PDF or DOCX attachment whose subject contains these title words.
                       Each result is then matched here (word order, abbreviations such as AI / Artificial Intelligence, small typos).
                     </p>
                   </>
                 )}
                 <div className="flex justify-end mt-3">
                   <Button onClick={() => runSearch("narrow")} isLoading={busy === "narrow"}
-                    disabled={!connectionId || !list.length || !variants}>
-                    <Search size={16} className="mr-2" /> Search Gmail
+                    disabled={!connectionId || !list.length || (!variants && !poolOnly)}>
+                    <Search size={16} className="mr-2" /> Search mailbox
                   </Button>
                 </div>
               </section>
@@ -380,7 +392,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                   {search.incomplete && (
                     <div className="mb-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-200 flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-2"><AlertTriangle size={16} /> Search incomplete. {search.incomplete_reason}
-                        {search.estimated_total > 0 && <> (Gmail estimates about {search.estimated_total} e-mail(s).)</>}</span>
+                        {search.estimated_total > 0 && <> (The mailbox estimates about {search.estimated_total} e-mail(s).)</>}</span>
                       {search.can_load_more && <Button size="sm" variant="secondary" onClick={loadMore} isLoading={busy === "more"}>Load more</Button>}
                     </div>
                   )}
@@ -462,9 +474,9 @@ function ResultCard({ result, selected, onToggle, selectable }: {
   );
 }
 
-function RunProgress({ run, busy, onCancel, onRetry, onBack, canSearchAgain }: {
+function RunProgress({ run, busy, onCancel, onRetry, onBack, canSearchAgain, poolOnly }: {
   run: GmailImportRun; busy: string | null; onCancel: () => void; onRetry: () => void; onBack: () => void;
-  canSearchAgain: boolean;
+  canSearchAgain: boolean; poolOnly?: boolean;
 }) {
   const active = ["queued", "running"].includes(run.status);
   const done = run.total - (run.counts.pending || 0) - (run.counts.processing || 0);
@@ -494,7 +506,11 @@ function RunProgress({ run, busy, onCancel, onRetry, onBack, canSearchAgain }: {
           {!active && canSearchAgain && <Button size="sm" variant="ghost" onClick={onBack}>Back to results</Button>}
         </div>
       </div>
-      <p className="text-xs text-[#546E7A] mt-2">Imported CVs are extracted once (or their existing profile is reused) and then assessed for this job; the ranking updates automatically.</p>
+      <p className="text-xs text-[#546E7A] mt-2">
+        {poolOnly
+          ? "Imported CVs are added to the Candidate Pool only. Open a person there to add them to a job."
+          : "Imported CVs are extracted once (or their existing profile is reused) and then assessed for this job; the ranking updates automatically."}
+      </p>
       <ul className="mt-3 space-y-1 max-h-80 overflow-y-auto">
         {(run.items || []).map((item) => (
           <li key={item.item_id} className="flex flex-wrap items-start gap-2 text-sm bg-[#132F4C] rounded p-2">

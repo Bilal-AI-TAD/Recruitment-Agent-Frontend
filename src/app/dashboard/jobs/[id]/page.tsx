@@ -40,7 +40,8 @@ export default function JobDetailPage() {
   const canImportGmail = (user?.permissions || []).includes("gmail.import");
 
   useEffect(() => {
-    configAPI.get().then((r) => setGmailEnabled(Boolean(r.data?.features?.gmail))).catch(() => setGmailEnabled(false));
+    configAPI.get().then((r) => setGmailEnabled(Boolean(r.data?.features?.gmail || r.data?.features?.outlook)))
+      .catch(() => setGmailEnabled(false));
   }, []);
 
   const loadJob = useCallback(async () => {
@@ -204,7 +205,7 @@ export default function JobDetailPage() {
             {gmailEnabled && canImportGmail && (
               <Button variant="outline" size="sm" disabled={!isOpen} onClick={() => { setGmailRunId(null); setGmailOpen(true); }}
                 title={isOpen ? "Search a connected mailbox for past applications to this job" : "This job is closed. Reopen it to import more CVs."}>
-                <Mail size={16} className="mr-2" /> Import from Gmail
+                <Mail size={16} className="mr-2" /> Import from mailbox
               </Button>
             )}
           </div>

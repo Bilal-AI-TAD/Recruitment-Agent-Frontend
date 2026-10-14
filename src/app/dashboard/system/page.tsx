@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { analyticsAPI, UsageRange } from "@/lib/api";
 import { Toaster } from "react-hot-toast";
 import { GmailConnectionsCard } from "@/components/gmail/GmailConnectionsCard";
+import { OutlookMailboxCard } from "@/components/mailbox/OutlookMailboxCard";
 import { AiReadiness, COST_LABEL, COST_NOTE, CostTotals, formatUsd } from "@/lib/cost";
 
 const mockServices = [
@@ -124,6 +125,7 @@ export default function SystemPage() {
         </Button>
       </motion.div>
 
+      <OutlookMailboxCard />
       <GmailConnectionsCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

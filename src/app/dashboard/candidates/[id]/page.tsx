@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge, scoreColor } from "@/components/CandidateStatus";
 import { HeadhuntedApplication } from "@/components/headhunting/HeadhuntedApplication";
+import { MessagesPanel } from "@/components/mailbox/MessagesPanel";
+import { useAuth } from "@/context/AuthContext";
 import { candidatesAPI, openCandidateCV, scheduleAPI } from "@/lib/api";
 import { getErrorMessage, INTERVIEW_FEATURES_ENABLED } from "@/lib/utils";
 import { CandidateAssessment } from "@/types";
@@ -155,6 +157,9 @@ export default function CandidateDetailPage() {
   const params = useParams();
   const router = useRouter();
   const candidateId = params.id as string;
+  const { user } = useAuth();
+  const permissions = user?.permissions || [];
+  const canSeeMessages = permissions.includes("mail.send") || permissions.includes("mail.approve_send");
   const [data, setData] = useState<CandidateAssessment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -386,6 +391,8 @@ export default function CandidateDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {canSeeMessages && <MessagesPanel applicationId={candidateId} permissions={permissions} />}
 
         <Card className="lg:col-span-3">
           <CardHeader><CardTitle>Extracted CV Profile</CardTitle></CardHeader>

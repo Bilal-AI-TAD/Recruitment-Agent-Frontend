@@ -143,8 +143,9 @@ export function GmailConnectionsCard() {
     not_needed: "Disconnected.",
   } as Record<string, string>)[c.revoke_result || "not_needed"] || "Disconnected.";
 
-  const mine = (data?.connections || []).filter((c) => c.is_owner);
-  const shared = (data?.connections || []).filter((c) => !c.is_owner);
+  const gmail = (data?.connections || []).filter((c) => (c.provider || "gmail") === "gmail");   // Outlook has its own card
+  const mine = gmail.filter((c) => c.is_owner);
+  const shared = gmail.filter((c) => !c.is_owner);
 
   return (
     <Card>

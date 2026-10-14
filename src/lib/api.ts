@@ -170,15 +170,39 @@ export const gmailAPI = {
   variants: (jobId: string) => api.get(`/integrations/gmail/jobs/${jobId}/variants`),
   regenerateVariants: (jobId: string) => api.post(`/integrations/gmail/jobs/${jobId}/variants/regenerate`),
   saveVariants: (jobId: string, variants: string[]) => api.put(`/integrations/gmail/jobs/${jobId}/variants`, { variants }),
-  search: (data: { connection_id: string; job_id: string; variants: string[]; date_from?: string; date_to?: string;
+  search: (data: { connection_id: string; job_id?: string | null; variants: string[]; date_from?: string; date_to?: string;
                    mode?: "narrow" | "broad"; confirm_broad?: boolean }) => api.post("/integrations/gmail/searches", data),
   more: (searchId: string) => api.post(`/integrations/gmail/searches/${searchId}/more`),
   startImport: (data: { search_id: string; selections: { message_id: string; part_ids: string[] }[];
                         client_request_id: string }) => api.post("/integrations/gmail/imports", data),
-  imports: (jobId: string) => api.get("/integrations/gmail/imports", { params: { job_id: jobId } }),
+  imports: (jobId?: string | null) => api.get("/integrations/gmail/imports", { params: jobId ? { job_id: jobId } : {} }),
   run: (runId: string) => api.get(`/integrations/gmail/imports/${runId}`),
   cancel: (runId: string) => api.post(`/integrations/gmail/imports/${runId}/cancel`),
   retry: (runId: string) => api.post(`/integrations/gmail/imports/${runId}/retry`),
+};
+
+/** The company Outlook mailbox (Microsoft Graph): connection, reply tracking. See backend docs/outlook.md. */
+export const outlookAPI = {
+  status: () => api.get("/integrations/outlook"),
+  connect: (nonce: string) => api.post("/integrations/outlook/connect", { nonce }),
+  complete: (flowId: string, nonce: string) => api.post("/integrations/outlook/complete", { flow_id: flowId, nonce }),
+  connectApp: () => api.post("/integrations/outlook/connect-app"),
+  syncReplies: () => api.post("/integrations/outlook/sync-replies"),
+};
+
+/** Outbox: candidate e-mails need a separate, recorded approval; nothing is sent without it. */
+export const mailAPI = {
+  outbox: (status?: string) => api.get("/mail/outbox", { params: status ? { status } : {} }),
+  message: (outboxId: string) => api.get(`/mail/outbox/${outboxId}`),
+  edit: (outboxId: string, subject: string, body: string) => api.put(`/mail/outbox/${outboxId}`, { subject, body }),
+  approve: (outboxId: string, contentHash: string) =>
+    api.post(`/mail/outbox/${outboxId}/approve`, { content_hash: contentHash }),
+  cancel: (outboxId: string) => api.post(`/mail/outbox/${outboxId}/cancel`),
+  resolve: (outboxId: string, outcome: "sent" | "not_sent") => api.post(`/mail/outbox/${outboxId}/resolve`, { outcome }),
+  thread: (applicationId: string) => api.get(`/candidates/${applicationId}/messages`),
+  templates: (applicationId: string) => api.get(`/candidates/${applicationId}/messages/templates`),
+  compose: (applicationId: string, data: { template: string; subject: string; body: string; client_request_id: string }) =>
+    api.post(`/candidates/${applicationId}/messages`, data),
 };
 
 export const headhuntingAPI = {

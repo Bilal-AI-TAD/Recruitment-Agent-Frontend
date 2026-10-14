@@ -4,8 +4,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import toast, { Toaster } from "react-hot-toast";
-import { AlertTriangle, ChevronLeft, ChevronRight, Database, Filter, Info, Plus, Search, X } from "lucide-react";
-import { poolAPI, PoolSearchParams } from "@/lib/api";
+import { AlertTriangle, ChevronLeft, ChevronRight, Database, Filter, Info, Mail, Plus, Search, X } from "lucide-react";
+import { configAPI, poolAPI, PoolSearchParams } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { GmailImportModal } from "@/components/gmail/GmailImportModal";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { PoolFacets, PoolListItem, PoolSearchResult } from "@/types";
 import { Card } from "@/components/ui/Card";
@@ -145,6 +147,14 @@ export default function CandidatePoolPage() {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+  const { user } = useAuth();
+  const [mailboxImport, setMailboxImport] = useState(false);
+  const [mailboxEnabled, setMailboxEnabled] = useState(false);
+  useEffect(() => {
+    configAPI.get().then((r) => setMailboxEnabled(Boolean(r.data?.features?.gmail || r.data?.features?.outlook)))
+      .catch(() => setMailboxEnabled(false));
+  }, []);
+  const canImport = mailboxEnabled && (user?.permissions || []).includes("gmail.import");
   const items = result?.items || [];
   const allOnPage = items.length > 0 && items.every((i) => selected.has(i.pool_candidate_id));
 
@@ -159,11 +169,19 @@ export default function CandidatePoolPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canImport && (
+            <Button variant="secondary" onClick={() => setMailboxImport(true)}>
+              <Mail size={16} className="mr-1" /> Import from mailbox
+            </Button>
+          )}
           {selected.size > 0 && (
             <Button onClick={() => setShowAdd(true)}><Plus size={16} className="mr-1" /> Add {selected.size} to job</Button>
           )}
         </div>
       </motion.div>
+      {mailboxImport && (
+        <GmailImportModal onClose={() => setMailboxImport(false)} onImported={load} />
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         <Card className="xl:col-span-1 h-fit space-y-4">

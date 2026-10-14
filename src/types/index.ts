@@ -572,6 +572,8 @@ export interface GmailEmailView {
 
 export interface GmailConnection {
   connection_id: string;
+  provider?: "gmail" | "outlook";
+  auth_mode?: "delegated" | "app_only" | null;
   mailbox_email: string;
   status: "active" | "needs_reconnect" | "disconnected";
   is_owner: boolean;
@@ -593,6 +595,8 @@ export interface GmailConnection {
 export interface GmailConnectionsResponse {
   configured: boolean;
   setup_issue: string | null;
+  outlook_configured?: boolean;
+  outlook_setup_issue?: string | null;
   can_connect: boolean;
   can_import: boolean;
   connections: GmailConnection[];
@@ -638,6 +642,8 @@ export interface GmailSearchResultItem {
 
 export interface GmailSearchResponse {
   search_id: string;
+  provider?: "gmail" | "outlook";
+  job_id?: string | null;
   mode: "narrow" | "broad";
   variants: string[];
   date_from: string | null;
@@ -675,7 +681,8 @@ export interface GmailImportItem {
 
 export interface GmailImportRun {
   run_id: string;
-  job_id: string;
+  job_id: string | null;
+  provider?: "gmail" | "outlook";
   status: GmailRunStatus;
   status_reason: string | null;
   mailbox_email: string;
@@ -842,4 +849,79 @@ export interface HHProspectDetail extends HHProspect {
   };
   assessment_meta: { method: string; prompt_version: string | null; model: string | null } | null;
   disclaimers: HHDisclaimers;
+}
+
+/** Outlook mailbox (Microsoft Graph) and the approval outbox. */
+export interface MailSendingStatus {
+  enabled: boolean;
+  issue: string | null;
+  connected: boolean;
+  mailbox: string | null;
+  test_allowlist: boolean;
+}
+
+export interface OutlookStatus {
+  configured: boolean;
+  setup_issue: string | null;
+  auth_mode: "delegated" | "app_only";
+  mailbox: string | null;
+  mailbox_type: "user" | "shared";
+  can_connect: boolean;
+  active_connection_id: string | null;
+  sending: MailSendingStatus;
+  reply_tracking: { last_synced_at: string | null; last_error: string | null } | null;
+  outbox: Record<string, number> | null;
+}
+
+export type OutboxStatus = "awaiting_approval" | "approved" | "draft_created" | "send_requested" | "submitted"
+  | "confirmed" | "uncertain" | "manual_review" | "bounced" | "failed" | "cancelled";
+
+export interface OutboxMessage {
+  outbox_id: string;
+  kind: "candidate_message" | "account_invitation";
+  template: string;
+  subject: string;
+  body: string | null;
+  recipients: string[];
+  content_hash: string;
+  status: OutboxStatus;
+  status_label: string;
+  status_detail: string | null;
+  candidate_id: string | null;
+  job_id: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  self_approved: boolean;
+  created_at: string | null;
+  submitted_at: string | null;
+  confirmed_at: string | null;
+  attempts: number;
+  can_edit: boolean;
+  can_approve: boolean;
+  can_cancel: boolean;
+  can_resolve: boolean;
+  events?: { event: string; actor: string | null; from: string | null; to: string | null; at: string | null }[];
+}
+
+export interface InboundReply {
+  inbound_id: string;
+  outbox_id: string;
+  is_bounce: boolean;
+  sender_name: string | null;
+  sender_email: string | null;
+  subject: string | null;
+  received_at: string | null;
+  text_excerpt: string | null;
+  has_attachments: boolean;
+  correlated_by: "conversation" | "in_reply_to" | "references";
+}
+
+export interface CandidateThread {
+  recipient: string | null;
+  can_compose: boolean;
+  compose_blocked_reason: string | null;
+  sending: MailSendingStatus;
+  messages: OutboxMessage[];
+  replies: InboundReply[];
 }

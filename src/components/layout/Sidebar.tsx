@@ -14,6 +14,7 @@ import {
   Settings,
   Database,
   UserCog,
+  Send,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -36,9 +37,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   // Owners (accounts.manage) see the Accounts page; the server enforces it regardless.
-  const items = user?.permissions?.includes("accounts.manage")
-    ? [...navItems, { icon: UserCog, label: "Accounts", href: "/dashboard/accounts" }]
-    : navItems;
+  const perms = user?.permissions || [];
+  const items = [
+    ...navItems,
+    ...(["mail.send", "mail.approve_send", "accounts.manage"].some((p) => perms.includes(p))
+      ? [{ icon: Send, label: "Outbox", href: "/dashboard/outbox" }] : []),
+    ...(perms.includes("accounts.manage") ? [{ icon: UserCog, label: "Accounts", href: "/dashboard/accounts" }] : []),
+  ];
 
   return (
     <motion.aside
