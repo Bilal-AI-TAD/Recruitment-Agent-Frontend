@@ -35,10 +35,27 @@ export const SOURCE_KIND: Record<string, string> = {
 export const DISAGREEMENT: Record<string, string> = {
   location_disagreement: "Rules and AI give different current locations",
   ai_omitted_location: "AI did not state the location the rules found",
+  ai_location_moved_to_availability: "AI gave an availability statement as the current location; the server re-filed it as availability",
   availability_vs_residence: "An availability statement and a residence are mixed up",
   ai_omitted_experience: "AI did not state the experience the rules found",
   experience_qualifier_differs: "Rules and AI quote different experience statements",
 };
+
+/** Names are never inferred: when no source states one, show the profile handle or URL instead. */
+export function prospectLabel(p: { display_name: string; handle?: string | null; canonical_url: string }) {
+  if (p.display_name && p.display_name !== "unknown") return { label: p.display_name, stated: true };
+  let path = p.canonical_url;
+  try { path = new URL(p.canonical_url).pathname.replace(/^\/(in\/)?|\/$/g, ""); } catch { /* keep URL */ }
+  return { label: p.handle || path || p.canonical_url, stated: false };
+}
+
+/** Readable text for a recorded stage issue ({error: "..."} objects, strings or anything else). */
+export function issueText(error: unknown) {
+  const raw = typeof error === "string" ? error
+    : error && typeof error === "object" && typeof (error as { error?: unknown }).error === "string"
+      ? (error as { error: string }).error : JSON.stringify(error);
+  return raw.replace(/\s+/g, " ").slice(0, 240);
+}
 
 export function StatusChip({ status, label }: { status: HHRequirementStatus; label?: string }) {
   const s = REQUIREMENT_STATUS[status] || REQUIREMENT_STATUS.unknown;

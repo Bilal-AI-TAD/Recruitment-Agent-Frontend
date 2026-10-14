@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { headhuntingAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { HHProspect, HHReviewStatus, HHRun } from "@/types";
-import { DISAGREEMENT, DisclaimerBanner, REQUIREMENT_STATUS, RunStatusBadge, SOURCE_KIND, StatusChip } from "@/components/headhunting/HeadhuntingBits";
+import { DISAGREEMENT, DisclaimerBanner, REQUIREMENT_STATUS, RunStatusBadge, SOURCE_KIND, StatusChip, issueText, prospectLabel } from "@/components/headhunting/HeadhuntingBits";
 import { ProspectDetail } from "@/components/headhunting/ProspectDetail";
 
 const STAGES = ["requirements", "queries", "search", "screen", "research", "assess", "done"];
@@ -21,6 +21,10 @@ const REVIEW_LABEL: Record<HHReviewStatus, string> = {
   new: "New", shortlist_for_review: "Shortlist for review", needs_more_info: "Needs more info", not_relevant: "Not relevant",
 };
 const ACTIVE = ["queued", "running"];
+const ITEM_KIND: Record<string, string> = {
+  search_query: "Search query", research_lead: "Research", research_unattached: "Research (other pages)",
+  assess_lead: "Assessment",
+};
 
 function Usage({ run }: { run: HHRun }) {
   const rows: [string, number | undefined, number | undefined][] = [
@@ -55,6 +59,7 @@ export default function HeadhuntingRunPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -64,8 +69,16 @@ export default function HeadhuntingRunPage() {
       const res = await headhuntingAPI.prospects(runId, filters);
       setRun(res.data.run);
       setProspects(res.data.prospects || []);
+      setNotFound(false);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not load the run"));
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 404 || status === 403) {
+        setRun(null);          // also stops polling
+        setProspects([]);
+        setNotFound(true);
+      } else {
+        toast.error(getErrorMessage(error, "Could not load the run"));
+      }
     }
   }, [runId, reviewFilter, statusFilter]);
 
@@ -101,6 +114,23 @@ export default function HeadhuntingRunPage() {
   const closeDetail = useCallback(() => setSelected(null), []);
   const stageIndex = run ? STAGES.indexOf(run.stage) : -1;
   const errors = (run?.counts?.stage_errors as { stage: string; error: unknown }[] | undefined) || [];
+  const failedItems = run?.failed_items || [];
+
+  if (notFound) {
+    return (
+      <div className="space-y-6">
+        <button onClick={() => router.push(`/dashboard/jobs/${jobId}`)} aria-label="Back to job"
+          className="p-2 rounded-lg hover:bg-[#132F4C] text-[#B0BEC5] hover:text-white transition-colors">
+          <ArrowLeft size={24} />
+        </button>
+        <Card>
+          <h1 className="text-xl font-semibold text-white">Run not found or not accessible</h1>
+          <p className="text-sm text-[#B0BEC5] mt-1">This headhunting run does not exist, Headhunting is not enabled,
+            or you do not have permission to view it.</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -154,10 +184,19 @@ export default function HeadhuntingRunPage() {
             ))}
           </ol>
           <Usage run={run} />
-          {errors.length > 0 && (
-            <details className="text-xs text-yellow-300">
-              <summary className="cursor-pointer flex items-center gap-1"><AlertTriangle size={12} /> {errors.length} recorded issue(s)</summary>
-              <ul className="mt-1 space-y-1 text-[#B0BEC5]">{errors.map((e, i) => <li key={i}>{e.stage}: {typeof e.error === "string" ? e.error : JSON.stringify(e.error).slice(0, 200)}</li>)}</ul>
+          {errors.length + failedItems.length > 0 && (
+            <details open className="text-xs text-yellow-300">
+              <summary className="cursor-pointer inline-flex items-center gap-1">
+                <AlertTriangle size={12} /> {errors.length + failedItems.length} recorded issue(s)</summary>
+              <ul className="mt-1 space-y-1 text-[#B0BEC5]">
+                {failedItems.map((f) => (
+                  <li key={`${f.kind}:${f.key}`}>{ITEM_KIND[f.kind] || f.kind} {f.key}: failed after {f.attempts} attempt(s)
+                    {f.reason && ` – ${f.reason}`}</li>
+                ))}
+                {errors.map((e, i) => <li key={i}>{e.stage}: {issueText(e.error)}</li>)}
+              </ul>
+              {["completed_with_errors", "failed"].includes(run.status) &&
+                <p className="mt-1 text-[#546E7A]">Retry re-attempts failed items within the run&apos;s remaining limits.</p>}
             </details>
           )}
         </Card>
@@ -201,8 +240,9 @@ export default function HeadhuntingRunPage() {
                   <tr key={p.prospect_id} className="border-b border-[#2A3F5E]/50 align-top">
                     <td className="py-3 pr-3 min-w-[200px]">
                       <button onClick={() => setSelected(p.prospect_id)} className="text-white font-medium hover:text-[#00C853] text-left">
-                        {p.display_name}
+                        {prospectLabel(p).label}
                       </button>
+                      {!prospectLabel(p).stated && <p className="text-xs text-[#546E7A]">Name not stated in the sources</p>}
                       {p.headline && <p className="text-xs text-[#B0BEC5] max-w-[260px]">{p.headline}</p>}
                       <div className="mt-1 flex flex-wrap gap-1">
                         <span className="px-2 py-0.5 rounded-full text-xs bg-[#132F4C] text-[#B0BEC5]">{p.profile_type.replace(/_/g, " ")}</span>

@@ -658,6 +658,7 @@ export interface HHRun {
   usage: Record<string, number>;
   counts: Record<string, unknown>;
   items: Record<string, Record<string, number>>;
+  failed_items?: { kind: string; key: string; attempts: number; reason: string }[];
   filters: { location: string } & Record<string, unknown>;
   model: string | null;
   cancel_requested: boolean;
@@ -679,6 +680,7 @@ export interface HHProspect {
   prospect_id: string;
   canonical_url: string;
   display_name: string;
+  handle?: string | null;
   headline: string | null;
   profile_type: string;
   screened_by: string;
@@ -728,6 +730,9 @@ export interface HHProspectDetail extends HHProspect {
     requirements: HHAssessedRequirement[];
     evidence_items: { evidence_id: string; source_kind: string; url: string | null; excerpt: string }[];
     observations: { quote: string; evidence_id: string; note: string | null; strength: string }[];
+    downgrades?: ({ field?: string; moved_to?: string; value?: string; expanded_from?: string } | string)[];
+    dropped_claims?: number;
+    observations_dropped?: Record<string, number>;
   };
   assessment_meta: { method: string; prompt_version: string | null; model: string | null } | null;
   disclaimers: HHDisclaimers;

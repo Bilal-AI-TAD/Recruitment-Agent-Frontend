@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { headhuntingAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { HHClaim, HHProspectDetail } from "@/types";
-import { DISAGREEMENT, DisclaimerBanner, SOURCE_KIND, StatusChip } from "./HeadhuntingBits";
+import { DISAGREEMENT, DisclaimerBanner, SOURCE_KIND, StatusChip, prospectLabel } from "./HeadhuntingBits";
 
 function claimText(claim: HHClaim | null | undefined) {
   if (!claim?.value) return "unknown";
@@ -34,6 +34,34 @@ export function ProspectDetail({ prospectId, onClose }: { prospectId: string; on
   }, [prospectId, onClose]);
 
   const evidence = Object.fromEntries((data?.assessment?.evidence_items || []).map((e) => [e.evidence_id, e]));
+  // The same hit can come back for several queries: show each distinct excerpt or snippet once, with a count.
+  const citedOnce = (ids: string[]) => {
+    const seen = new Map<string, { id: string; n: number }>();
+    for (const id of ids) {
+      const e = evidence[id];
+      if (!e) continue;
+      const key = `${e.source_kind}|${e.excerpt}`;
+      const hit = seen.get(key);
+      if (hit) hit.n += 1; else seen.set(key, { id, n: 1 });
+    }
+    return [...seen.values()];
+  };
+  const snippets = (() => {
+    const seen = new Map<string, { s: HHProspectDetail["search_sources"][number]; queries: number }>();
+    for (const s of data?.search_sources || []) {
+      const key = `${s.title}|${s.snippet}`;
+      const hit = seen.get(key);
+      if (hit) hit.queries += 1; else seen.set(key, { s, queries: 1 });
+    }
+    return [...seen.values()];
+  })();
+  const corrections = [
+    ...(data?.assessment?.downgrades || []).map((g) => typeof g === "string" ? g.replace(/_/g, " ")
+      : g.moved_to ? `${(g.field || "").replace(/_/g, " ")} "${g.value}" was moved to ${g.moved_to.replace(/_/g, " ")}`
+        : g.expanded_from ? `${(g.field || "").replace(/_/g, " ")} expanded to the full clause (was "${g.expanded_from}")`
+          : JSON.stringify(g)),
+    ...(data?.assessment?.dropped_claims ? [`${data.assessment.dropped_claims} AI claim(s) not found in the cited evidence were removed`] : []),
+  ];
   const det = data?.deterministic;
   const ai = data?.ai;
 
@@ -48,7 +76,8 @@ export function ProspectDetail({ prospectId, onClose }: { prospectId: string; on
           <>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-white">{data.display_name}</h2>
+                <h2 className="text-xl font-semibold text-white">{prospectLabel(data).label}</h2>
+                {!prospectLabel(data).stated && <p className="text-xs text-[#546E7A]">Name not stated in the sources</p>}
                 <a href={data.canonical_url} target="_blank" rel="noopener noreferrer"
                   className="text-xs text-[#00C853] hover:underline inline-flex items-center gap-1">
                   {data.canonical_url} <ExternalLink size={12} />
@@ -85,9 +114,10 @@ export function ProspectDetail({ prospectId, onClose }: { prospectId: string; on
                         {(r.adjustments || []).length > 0 && <span className="block text-blue-300">{(r.adjustments || []).join(", ").replace(/_/g, " ")}</span>}
                       </td>
                       <td className="py-2 text-xs text-[#B0BEC5] space-y-1">
-                        {r.evidence_ids.map((id) => evidence[id] && (
+                        {citedOnce(r.evidence_ids).map(({ id, n }) => (
                           <p key={id}><span className="px-1.5 py-0.5 mr-1 rounded bg-[#132F4C] text-[#B0BEC5]">
-                            {SOURCE_KIND[evidence[id].source_kind] || evidence[id].source_kind}</span>“{evidence[id].excerpt.slice(0, 220)}”</p>
+                            {SOURCE_KIND[evidence[id].source_kind] || evidence[id].source_kind}</span>“{evidence[id].excerpt.slice(0, 220)}”
+                            {n > 1 && <span className="text-[#546E7A]"> (×{n})</span>}</p>
                         ))}
                       </td>
                     </tr>
@@ -122,6 +152,13 @@ export function ProspectDetail({ prospectId, onClose }: { prospectId: string; on
                 Experience statements are claims; they are never verified or compared against the minimum automatically.</p>
             </section>
 
+            {corrections.length > 0 && (
+              <section>
+                <h3 className="text-sm font-semibold text-white mb-2">Server corrections to the AI output</h3>
+                <ul className="text-xs text-blue-300 space-y-1">{corrections.map((c) => <li key={c}>{c}</li>)}</ul>
+              </section>
+            )}
+
             {(data.assessment?.observations || []).length > 0 && (
               <section>
                 <h3 className="text-sm font-semibold text-white mb-2">Observations (quotes)</h3>
@@ -134,10 +171,11 @@ export function ProspectDetail({ prospectId, onClose }: { prospectId: string; on
             <section>
               <h3 className="text-sm font-semibold text-white mb-2">Sources</h3>
               <div className="space-y-2">
-                {data.search_sources.map((s) => (
+                {snippets.map(({ s, queries }) => (
                   <div key={s.result_id} className="rounded-lg bg-[#132F4C] p-3 text-xs">
                     <p className="text-[#B0BEC5]"><span className="px-1.5 py-0.5 rounded bg-[#0A1929] mr-1">Search snippet</span>
-                      {s.engine} · {s.retrieved_at ? new Date(s.retrieved_at).toLocaleString() : ""}</p>
+                      {s.engine} · {s.retrieved_at ? new Date(s.retrieved_at).toLocaleString() : ""}
+                      {queries > 1 && ` · returned by ${queries} queries`}</p>
                     <p className="text-white mt-1">{s.title}</p>
                     <p className="text-[#B0BEC5]">{s.snippet}</p>
                   </div>
