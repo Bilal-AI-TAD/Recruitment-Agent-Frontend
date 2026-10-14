@@ -194,6 +194,8 @@ export interface CVImportSummary {
   duplicate: number;
   rejected: number;
   queued_for_processing: number;
+  /** Set when the CVs were imported but no paid AI analysis could be queued (permission, price or budget). */
+  processing_blocked?: { code: string; message: string }[] | null;
   results: CVImportResult[];
 }
 

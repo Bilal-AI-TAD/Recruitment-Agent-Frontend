@@ -91,14 +91,14 @@ function TrendChart({ tokenUsage }: { tokenUsage: any[] }) {
   const validUsage = safeUsage.filter(d => d && typeof d === 'object' && typeof d.tokens === 'number');
   const maxTokens = validUsage.length > 0 ? Math.max(...validUsage.map(d => d.tokens), 1) : 1;
 
-  if (validUsage.length === 0) {
+  if (validUsage.every((d) => d.tokens === 0)) {      // the API returns every day of the range, empty ones as 0
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Token Usage Trends</CardTitle>
+          <CardTitle>Token Usage Trends <span className="text-xs font-normal text-[#546E7A]">last 7 days (UTC) · other dates on the System page</span></CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-[#B0BEC5] text-center py-8">No token usage data available</p>
+          <p className="text-[#B0BEC5] text-center py-8">No AI token usage in the last 7 days</p>
         </CardContent>
       </Card>
     );
@@ -107,7 +107,7 @@ function TrendChart({ tokenUsage }: { tokenUsage: any[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Token Usage Trends</CardTitle>
+        <CardTitle>Token Usage Trends <span className="text-xs font-normal text-[#546E7A]">last 7 days (UTC) · other dates on the System page</span></CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64 flex items-end justify-between gap-2">

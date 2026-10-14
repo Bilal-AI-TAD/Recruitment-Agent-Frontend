@@ -95,7 +95,9 @@ export function AddToJobModal({ candidateIds, onClose, onDone }: {
     try {
       const res = await poolAPI.addToJob(jobId, candidateIds);
       const { added, skipped, results } = res.data as { added: number; skipped: number; results: { status: string; reason?: string; name?: string }[] };
-      toast.success(`${added} added and queued for assessment${skipped ? `, ${skipped} skipped` : ""}`);
+      const blocked = (res.data as { processing_blocked?: { message: string }[] | null }).processing_blocked;
+      if (blocked?.length) toast(`${added} added – not analysed yet (Pending): ${blocked[0].message}`, { icon: "⚠️", duration: 8000 });
+      else toast.success(`${added} added and queued for assessment${skipped ? `, ${skipped} skipped` : ""}`);
       results.filter((r) => r.status !== "added").slice(0, 3).forEach((r) => toast(`${r.name || "Candidate"}: ${r.reason}`));
       onDone?.();
       onClose();

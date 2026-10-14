@@ -183,10 +183,15 @@ export const resumesAPI = {
   upload: (data: FormData) => api.post("/resumes/upload", data),
 };
 
+export interface UsageRange { start: string; end: string; granularity: "day" | "week" }
+
 export const analyticsAPI = {
   getDashboardMetrics: () => api.get("/analytics/dashboard-metrics"),
-  getTokenUsage: (period: string = "daily") => api.get("/analytics/token-usage", { params: { period } }),
-  getTokenSummary: () => api.get("/analytics/token-summary"),
+  /** Legacy "daily"/"weekly", or an explicit UTC date range (YYYY-MM-DD, inclusive) by day or week. */
+  getTokenUsage: (range: string | UsageRange = "daily") =>
+    api.get("/analytics/token-usage", { params: typeof range === "string" ? { period: range } : range }),
+  getTokenSummary: (range?: { start?: string; end?: string }) => api.get("/analytics/token-summary", { params: range || {} }),
+  getAiReadiness: (headhunted = false) => api.get("/analytics/ai-readiness", { params: { headhunted } }),
   getRecentActivity: (limit = 10) => api.get("/analytics/recent-activity", { params: { limit } }),
   getScoreDistribution: () => api.get("/analytics/score-distribution"),
 };

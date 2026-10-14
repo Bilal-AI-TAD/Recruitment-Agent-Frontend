@@ -37,9 +37,22 @@ export interface CostTotals {
   unknown_reasons: Record<string, number>;
   price_table_version: string | null;
   daily_budget_usd: number | null;
+  budget_configured?: boolean;
   committed_24h_usd: number;
   operations: Record<string, {
     calls: number; calculated_usd: number; reconstructed_usd: number; incurred_usd: number;
     uncertain_usd: number; reserved_active_usd: number; unknown_calls: number;
   }>;
+}
+
+export interface AiReadiness {
+  ready: boolean;
+  blockers: { code: string; message: string }[];
+  headhunted: boolean;
+  permissions_required: string[];
+  models: { stage: string; provider: string | null; model: string | null;
+            price: { version: string | null; effective_from: string | null; input: number; cached_input: number | null; output: number } | null }[];
+  shared_budget: { daily_budget_usd: number | null; configured: boolean; committed_24h_usd: number;
+                   remaining_usd: number | null; analysis_estimate_usd: number };
+  headhunting: { daily_budget_usd: number | null; committed_24h_usd: number; reservation_usd: number } | null;
 }

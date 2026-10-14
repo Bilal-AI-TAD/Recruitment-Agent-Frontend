@@ -164,6 +164,11 @@ export function CVImport({ jobId, disabled, disabledReason, onImported }: CVImpo
               <X size={16} />
             </button>
           </div>
+          {summary.processing_blocked && summary.processing_blocked.length > 0 && (
+            <p className="text-xs text-yellow-300 mb-3" data-testid="processing-blocked">
+              Imported, but not analysed yet – they stay Pending: {summary.processing_blocked[0].message}
+            </p>
+          )}
           {summary.queued_for_processing > 0 && (
             <p className="text-xs text-[#B0BEC5] mb-3">
               {summary.queued_for_processing} CV(s) are being extracted and matched by AI. The ranking updates automatically.
