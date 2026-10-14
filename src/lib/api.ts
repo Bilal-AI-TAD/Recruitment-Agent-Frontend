@@ -160,6 +160,11 @@ export const headhuntingAPI = {
   prospect: (prospectId: string) => api.get(`/headhunting/prospects/${prospectId}`),
   review: (jobId: string, data: { canonical_url: string; status: string; note?: string | null }) =>
     api.put(`/headhunting/jobs/${jobId}/reviews`, data),
+  retention: (prospectId: string) => api.get(`/headhunting/prospects/${prospectId}/retention`),
+  extend: (jobId: string, data: { canonical_url: string; days: number; reason_code: string; note?: string | null }) =>
+    api.post(`/headhunting/jobs/${jobId}/retention/extend`, data),
+  deleteNow: (data: { canonical_url: string; reason_code: string; suppress: boolean }) =>
+    api.post("/headhunting/retention/delete", data),
 };
 
 export const resumesAPI = {

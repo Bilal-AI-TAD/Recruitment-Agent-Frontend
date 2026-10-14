@@ -56,6 +56,7 @@ export default function HeadhuntingRunPage() {
   const [prospects, setProspects] = useState<HHProspect[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [reviewFilter, setReviewFilter] = useState<string>("");
+  const [expiringOnly, setExpiringOnly] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -66,6 +67,7 @@ export default function HeadhuntingRunPage() {
       const filters: Record<string, string> = {};
       if (reviewFilter) filters.review_status = reviewFilter;
       if (statusFilter) filters.has_status = statusFilter;
+      if (expiringOnly) filters.expiring_soon = "true";
       const res = await headhuntingAPI.prospects(runId, filters);
       setRun(res.data.run);
       setProspects(res.data.prospects || []);
@@ -80,7 +82,7 @@ export default function HeadhuntingRunPage() {
         toast.error(getErrorMessage(error, "Could not load the run"));
       }
     }
-  }, [runId, reviewFilter, statusFilter]);
+  }, [runId, reviewFilter, statusFilter, expiringOnly]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -135,7 +137,8 @@ export default function HeadhuntingRunPage() {
   return (
     <div className="space-y-6">
       <Toaster position="top-right" />
-      {selected && <ProspectDetail prospectId={selected} onClose={closeDetail} />}
+      {selected && <ProspectDetail prospectId={selected} jobId={jobId} onClose={closeDetail}
+        onDeleted={() => { setSelected(null); load(); }} />}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <button onClick={() => router.push(`/dashboard/jobs/${jobId}`)} aria-label="Back to job"
@@ -184,6 +187,10 @@ export default function HeadhuntingRunPage() {
             ))}
           </ol>
           <Usage run={run} />
+          {Number(run.counts?.suppressed || 0) > 0 && (
+            <p className="text-xs text-[#B0BEC5]" data-testid="suppressed-count">
+              {String(run.counts?.suppressed)} profile(s) skipped: deleted earlier with &quot;do not collect again&quot;.</p>
+          )}
           {errors.length + failedItems.length > 0 && (
             <details open className="text-xs text-yellow-300">
               <summary className="cursor-pointer inline-flex items-center gap-1">
@@ -208,7 +215,11 @@ export default function HeadhuntingRunPage() {
             <h2 className="text-lg font-semibold text-white">Prospects ({prospects.length})</h2>
             <p className="text-xs text-[#B0BEC5]">Every prospect stays visible – including &quot;indicated&quot; ones. HR decides; nothing is rejected automatically. No one has been contacted.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1 text-sm text-[#B0BEC5]">
+              <input type="checkbox" checked={expiringOnly} onChange={(e) => setExpiringOnly(e.target.checked)}
+                aria-label="Expiring soon only" /> Expiring soon
+            </label>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-[#132F4C] border border-[#2A3F5E] rounded-lg text-sm text-white px-3 py-1.5" aria-label="Filter by requirement status">
               <option value="">Any requirement status</option>
@@ -232,7 +243,8 @@ export default function HeadhuntingRunPage() {
                   <th className="py-2 pr-3 font-medium">Requirements</th>
                   <th className="py-2 pr-3 font-medium">Location (rules | AI)</th>
                   <th className="py-2 pr-3 font-medium">Experience statements</th>
-                  <th className="py-2 font-medium">Review</th>
+                  <th className="py-2 pr-3 font-medium">Review</th>
+                  <th className="py-2 font-medium">Retention</th>
                 </tr>
               </thead>
               <tbody>
@@ -270,7 +282,7 @@ export default function HeadhuntingRunPage() {
                       {p.deterministic.experience_claims.map((c) => c.text).join("; ") || "unknown"}
                       {p.ai?.experience_statement?.value && <p className="text-white">AI: {p.ai.experience_statement.value}</p>}
                     </td>
-                    <td className="py-3">
+                    <td className="py-3 pr-3">
                       <select value={p.review.status} disabled={busy} onChange={(e) => setReview(p, e.target.value as HHReviewStatus)}
                         className="bg-[#132F4C] border border-[#2A3F5E] rounded-lg text-xs text-white px-2 py-1" aria-label="Review state">
                         {Object.entries(REVIEW_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -279,6 +291,16 @@ export default function HeadhuntingRunPage() {
                         onChange={(e) => setNotes((n) => ({ ...n, [p.prospect_id]: e.target.value }))}
                         onBlur={() => saveNote(p)}
                         className="mt-1 block w-40 bg-[#0A1929] border border-[#2A3F5E] rounded-lg text-xs text-white px-2 py-1" />
+                    </td>
+                    <td className="py-3 pl-3 text-xs whitespace-nowrap" data-testid="retention-cell">
+                      {p.retention.days_left !== null && (
+                        <span className={cn("px-2 py-0.5 rounded-full", p.retention.expiring_soon
+                          ? "bg-yellow-500/15 text-yellow-300" : "bg-[#132F4C] text-[#B0BEC5]")}
+                          title={p.retention.expires_at ? `Deleted on ${new Date(p.retention.expires_at).toLocaleDateString()}` : undefined}>
+                          Deleted in {p.retention.days_left} day(s)
+                        </span>
+                      )}
+                      {p.retention.extended && <p className="mt-1 text-[#546E7A]">extended</p>}
                     </td>
                   </tr>
                 ))}

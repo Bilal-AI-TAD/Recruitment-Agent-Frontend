@@ -8,6 +8,7 @@ import { headhuntingAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { HHClaim, HHProspectDetail } from "@/types";
 import { DISAGREEMENT, DisclaimerBanner, SOURCE_KIND, StatusChip, prospectLabel } from "./HeadhuntingBits";
+import { RetentionPanel } from "./RetentionPanel";
 
 function claimText(claim: HHClaim | null | undefined) {
   if (!claim?.value) return "unknown";
@@ -25,7 +26,9 @@ function SideBySide({ label, rules, ai }: { label: string; rules: string; ai: st
   );
 }
 
-export function ProspectDetail({ prospectId, onClose }: { prospectId: string; onClose: () => void }) {
+export function ProspectDetail({ prospectId, jobId, onClose, onDeleted }: {
+  prospectId: string; jobId: string; onClose: () => void; onDeleted: () => void;
+}) {
   const [data, setData] = useState<HHProspectDetail | null>(null);
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export function ProspectDetail({ prospectId, onClose }: { prospectId: string; on
               <button onClick={onClose} className="text-[#B0BEC5] hover:text-white" aria-label="Close"><X size={20} /></button>
             </div>
             <DisclaimerBanner disclaimers={data.disclaimers} />
+            <RetentionPanel prospectId={prospectId} jobId={jobId} canonicalUrl={data.canonical_url} onDeleted={onDeleted} />
 
             <section>
               <h3 className="text-sm font-semibold text-white mb-2">Requirements</h3>

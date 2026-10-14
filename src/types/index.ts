@@ -644,6 +644,17 @@ export interface HHConfig {
     daily_budget_usd: number | null;
     daily_remaining_usd: number | null;
   };
+  retention: {
+    days: number;
+    max_extension_days: number;
+    max_total_days: number;
+    warning_days: number;
+    unavailable_reason: string | null;
+    can_manage: boolean;
+    extend_reasons: string[];
+    delete_reasons: string[];
+    forced_suppression_reasons: string[];
+  };
   disclaimers: HHDisclaimers;
 }
 
@@ -707,6 +718,29 @@ export interface HHProspect {
   };
   disagreements: string[];
   review: { status: HHReviewStatus; note: string | null; reviewed_at: string | null };
+  retention: HHRetentionBrief;
+}
+
+export interface HHRetentionBrief {
+  expires_at: string | null;
+  days_left: number | null;
+  expiring_soon: boolean;
+  extended: boolean;
+}
+
+export interface HHRetentionInfo {
+  expires_at: string | null;
+  days_left: number | null;
+  first_discovered_at: string | null;
+  cap_at: string | null;
+  can_extend_until: string | null;
+  extensions: number;
+  extension_note: string | null;
+  history: { action: string; reason_code: string | null; old_expires_at: string | null; new_expires_at: string | null; at: string | null }[];
+  can_manage: boolean;
+  review_status_extends_retention: boolean;
+  presence?: { runs: number; jobs: number; active_runs: number };
+  possible_same_person?: { prospect_id: string; run_id: string; job_id: string; display_name: string; canonical_url: string; match: string }[];
 }
 
 export interface HHAssessedRequirement {
