@@ -12,6 +12,7 @@ import { JobModal } from "@/components/JobModal";
 import { PoolPickerModal } from "@/components/pool/PoolPickerModal";
 import { GmailImportModal } from "@/components/gmail/GmailImportModal";
 import { GmailImportHistory } from "@/components/gmail/GmailImportHistory";
+import { HeadhuntingCard } from "@/components/headhunting/HeadhuntingCard";
 import { useAuth } from "@/context/AuthContext";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
 import { candidatesAPI, configAPI, jobsAPI, openCandidateCV } from "@/lib/api";
@@ -219,6 +220,8 @@ export default function JobDetailPage() {
           )}
         </Card>
       </div>
+
+      <HeadhuntingCard jobId={jobId} jobLocation={job.location} isOpen={isOpen} />
 
       <Card>
         <div className="flex items-center justify-between flex-wrap gap-3 mb-2">

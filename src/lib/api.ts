@@ -147,6 +147,21 @@ export const gmailAPI = {
   retry: (runId: string) => api.post(`/integrations/gmail/imports/${runId}/retry`),
 };
 
+export const headhuntingAPI = {
+  config: () => api.get("/headhunting/config"),
+  start: (jobId: string, data: { mode: string; location: string; client_request_id: string;
+                                 limits?: Record<string, number> }) => api.post(`/jobs/${jobId}/headhunting/runs`, data),
+  runs: (jobId: string) => api.get(`/jobs/${jobId}/headhunting/runs`),
+  run: (runId: string) => api.get(`/headhunting/runs/${runId}`),
+  cancel: (runId: string) => api.post(`/headhunting/runs/${runId}/cancel`),
+  retry: (runId: string) => api.post(`/headhunting/runs/${runId}/retry`),
+  prospects: (runId: string, params?: Record<string, string | number>) =>
+    api.get(`/headhunting/runs/${runId}/prospects`, { params }),
+  prospect: (prospectId: string) => api.get(`/headhunting/prospects/${prospectId}`),
+  review: (jobId: string, data: { canonical_url: string; status: string; note?: string | null }) =>
+    api.put(`/headhunting/jobs/${jobId}/reviews`, data),
+};
+
 export const resumesAPI = {
   upload: (data: FormData) => api.post("/resumes/upload", data),
 };

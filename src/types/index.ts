@@ -618,3 +618,117 @@ export interface GmailImportRun {
   total: number;
   items?: GmailImportItem[];
 }
+
+// ---------------------------------------------------------------- Headhunting (internal slice)
+
+export type HHRequirementStatus = "supported" | "indicated" | "unknown" | "contradicted";
+export type HHReviewStatus = "new" | "shortlist_for_review" | "needs_more_info" | "not_relevant";
+
+export interface HHDisclaimers {
+  supported: string;
+  indicated: string;
+  evaluation: string;
+  scope: string;
+}
+
+export interface HHConfig {
+  enabled: boolean;
+  modes: ("rules-diagnostic" | "ai")[];
+  can_review: boolean;
+  limits: Record<string, number>;
+  engines: string[];
+  ai: {
+    model: string;
+    unavailable_reason: string | null;
+    max_cost_usd_per_run: number | null;
+    daily_budget_usd: number | null;
+    daily_remaining_usd: number | null;
+  };
+  disclaimers: HHDisclaimers;
+}
+
+export interface HHRun {
+  run_id: string;
+  job_id: string;
+  mode: "rules-diagnostic" | "ai";
+  status: string;
+  stage: string;
+  status_reason: string | null;
+  limits: Record<string, number>;
+  usage: Record<string, number>;
+  counts: Record<string, unknown>;
+  items: Record<string, Record<string, number>>;
+  filters: { location: string } & Record<string, unknown>;
+  model: string | null;
+  cancel_requested: boolean;
+  created_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  disclaimers: HHDisclaimers;
+}
+
+export interface HHClaim {
+  value: string;
+  kind?: string;
+  basis?: string;
+  quote?: string;
+  source_kind?: string;
+}
+
+export interface HHProspect {
+  prospect_id: string;
+  canonical_url: string;
+  display_name: string;
+  headline: string | null;
+  profile_type: string;
+  screened_by: string;
+  research_note: string | null;
+  source_kinds: string[];
+  assessment_method: string | null;
+  requirements_met: number;
+  status_counts: Record<HHRequirementStatus, number>;
+  requirements: { requirement: string; status: HHRequirementStatus; activity: string | null }[];
+  deterministic: {
+    current_location: HHClaim | null;
+    availability: HHClaim | null;
+    relocation_preference: HHClaim | null;
+    location_hints: string[];
+    location_status: string;
+    experience_claims: { text: string; source_kind: string }[];
+    experience_status: string;
+  };
+  ai: null | {
+    current_location: { value: string | null };
+    availability: { value: string | null };
+    relocation_preference: { value: string | null };
+    experience_statement: { value: string | null };
+  };
+  disagreements: string[];
+  review: { status: HHReviewStatus; note: string | null; reviewed_at: string | null };
+}
+
+export interface HHAssessedRequirement {
+  requirement: string;
+  status: HHRequirementStatus;
+  evidence_ids: string[];
+  basis: string | null;
+  attribution: string | null;
+  activity: string | null;
+  scope_note: string | null;
+  downgrades: string[];
+  adjustments?: string[];
+}
+
+export interface HHProspectDetail extends HHProspect {
+  search_sources: { result_id: string; url: string; engine: string; query_text: string; title: string; snippet: string; retrieved_at: string }[];
+  fetched_sources: { source_id: string; purpose: string; source_kind: string; url: string; final_url: string | null; outcome: string;
+                     retrieved_at: string | null; sha256: string | null; identity_link: string; excerpts: { label: string; text: string; value?: string }[] }[];
+  assessment: null | {
+    method: string;
+    requirements: HHAssessedRequirement[];
+    evidence_items: { evidence_id: string; source_kind: string; url: string | null; excerpt: string }[];
+    observations: { quote: string; evidence_id: string; note: string | null; strength: string }[];
+  };
+  assessment_meta: { method: string; prompt_version: string | null; model: string | null } | null;
+  disclaimers: HHDisclaimers;
+}
