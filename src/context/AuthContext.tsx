@@ -11,13 +11,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  register: (data: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    password: string;
-    role: string;
-  }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,7 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authAPI.validateToken()
         .then((res) => {
           // refresh server-granted permissions (they can change without a new login)
-          const fresh = { ...JSON.parse(storedUser), permissions: res.data?.permissions || [] };
+          const fresh = { ...JSON.parse(storedUser), permissions: res.data?.permissions || [],
+                          organization: res.data?.organization || null };
           localStorage.setItem("user", JSON.stringify(fresh));
           setUser(fresh);
           setIsLoading(false);
@@ -68,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: userData.email,
       role: userData.role,
       permissions: userData.permissions || [],
+      organization: userData.organization || null,
     };
     
     localStorage.setItem("user", JSON.stringify(userInfo));
@@ -81,17 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   };
 
-  const register = async (data: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    password: string;
-    role: string;
-  }) => {
-    await authAPI.register(data);
-    await login(data.email, data.password);
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -100,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         login,
         logout,
-        register,
       }}
     >
       {children}

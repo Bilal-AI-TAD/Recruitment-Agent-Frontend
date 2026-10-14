@@ -13,7 +13,9 @@ import {
   Phone,
   Settings,
   Database,
+  UserCog,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -32,6 +34,11 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  // Owners (accounts.manage) see the Accounts page; the server enforces it regardless.
+  const items = user?.permissions?.includes("accounts.manage")
+    ? [...navItems, { icon: UserCog, label: "Accounts", href: "/dashboard/accounts" }]
+    : navItems;
 
   return (
     <motion.aside
@@ -55,7 +62,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 py-4 px-2">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
           return (
             <Link

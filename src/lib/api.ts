@@ -23,7 +23,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== "undefined" && !isAuthCall) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("user");
-      if (!window.location.pathname.startsWith("/login")) {
+      const publicPage = ["/login", "/register", "/accept-invitation"].some((p) => window.location.pathname.startsWith(p));
+      if (!publicPage) {
         window.location.href = "/login";
       }
     }
@@ -33,9 +34,30 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: (email: string, password: string) => api.post("/user/login", { email, password }),
-  register: (data: { first_name: string; last_name: string; email: string; password: string; role: string }) =>
-    api.post("/user/register", data),
   validateToken: () => api.get("/user/me"),
+};
+
+/** Owner-approved accounts: public access requests + invitation redemption, and the owner's Accounts page. */
+export const accountsAPI = {
+  requestAccess: (data: { email: string; first_name: string; last_name: string; note?: string }) =>
+    api.post("/account-requests", data),
+  inspectInvitation: (token: string) => api.post("/invitations/inspect", { token }),
+  acceptInvitation: (data: { token: string; email: string; password: string; first_name: string; last_name: string }) =>
+    api.post("/invitations/accept", data),
+  permissions: () => api.get("/accounts/permissions"),
+  requests: (status = "pending") => api.get("/accounts/requests", { params: { status } }),
+  approve: (requestId: string, permissions: string[]) =>
+    api.post(`/accounts/requests/${requestId}/approve`, { permissions }),
+  reject: (requestId: string, reason?: string) => api.post(`/accounts/requests/${requestId}/reject`, { reason }),
+  members: () => api.get("/accounts/members"),
+  setPermissions: (userId: string, permissions: string[]) =>
+    api.put(`/accounts/members/${userId}/permissions`, { permissions }),
+  setStatus: (userId: string, status: "active" | "disabled") => api.put(`/accounts/members/${userId}/status`, { status }),
+  invitations: () => api.get("/accounts/invitations"),
+  invite: (email: string, permissions: string[]) => api.post("/accounts/invitations", { email, permissions }),
+  revoke: (invitationId: string) => api.post(`/accounts/invitations/${invitationId}/revoke`),
+  reissue: (invitationId: string) => api.post(`/accounts/invitations/${invitationId}/reissue`),
+  audit: () => api.get("/accounts/audit"),
 };
 
 export const configAPI = {

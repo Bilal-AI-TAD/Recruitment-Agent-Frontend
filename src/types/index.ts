@@ -6,6 +6,8 @@ export interface User {
   role: string;
   /** Explicit server-granted permissions, e.g. "pool.remove", "pool.merge". Enforced by the backend. */
   permissions?: string[];
+  /** The user's organization (decided by the server; never chosen by the client). */
+  organization?: { organization_id: string; name: string } | null;
 }
 
 export interface AuthResponse {
