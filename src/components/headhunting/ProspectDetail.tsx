@@ -120,7 +120,7 @@ export function ProspectDetail({ prospectId, jobId, onClose, onDeleted }: {
                       <td className="py-2 text-xs text-[#B0BEC5] space-y-1">
                         {citedOnce(r.evidence_ids).map(({ id, n }) => (
                           <p key={id}><span className="px-1.5 py-0.5 mr-1 rounded bg-[#132F4C] text-[#B0BEC5]">
-                            {SOURCE_KIND[evidence[id].source_kind] || evidence[id].source_kind}</span>“{evidence[id].excerpt.slice(0, 220)}”
+                            {SOURCE_KIND[evidence[id].source_kind] || evidence[id].source_kind}</span>“{evidence[id].excerpt.slice(0, 1000)}”
                             {n > 1 && <span className="text-[#546E7A]"> (×{n})</span>}</p>
                         ))}
                       </td>
