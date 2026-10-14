@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, Clock, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
@@ -42,6 +43,8 @@ export function RetentionPanel({ prospectId, jobId, canonicalUrl, onDeleted }: {
   const [suppress, setSuppress] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [blocked, setBlocked] = useState<{ message: string; steps: string[];
+    pool_record: { pool_candidate_id: string; name: string | null; link: string } } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -78,9 +81,20 @@ export function RetentionPanel({ prospectId, jobId, canonicalUrl, onDeleted }: {
     try {
       const res = await headhuntingAPI.deleteNow({ canonical_url: url, reason_code: deleteReason, suppress: suppress || forced });
       const d = res.data.deleted;
-      toast.success(`Deleted from ${d.runs} run(s) in ${d.jobs} job(s)${d.suppressed ? "; will not be collected again" : ""}`);
+      if (d.erasure_complete === false) {
+        // Never report erasure as complete while a copy remains elsewhere.
+        toast(`Headhunting data deleted from ${d.runs} run(s). A copy remains in the Candidate Pool – not erased.`,
+          { icon: "⚠️", duration: 8000 });
+      } else {
+        toast.success(`Deleted from ${d.runs} run(s) in ${d.jobs} job(s)${d.suppressed ? "; will not be collected again" : ""}`);
+      }
       if (url === canonicalUrl) onDeleted(); else await load();
     } catch (error) {
+      const detail = (error as { response?: { data?: { detail?: { error?: { code?: string; details?: unknown } } } } })
+        ?.response?.data?.detail?.error;
+      if (detail?.code === "PERSON_IN_POOL" && detail.details && typeof detail.details === "object") {
+        setBlocked(detail.details as typeof blocked);
+      }
       toast.error(getErrorMessage(error, "Could not delete"));
     } finally {
       setBusy(false);
@@ -177,6 +191,14 @@ export function RetentionPanel({ prospectId, jobId, canonicalUrl, onDeleted }: {
                     onClick={() => doDelete(canonicalUrl)}>Delete everywhere</Button>
                   <Button size="sm" variant="ghost" onClick={() => { setDeleting(false); setConfirmText(""); }}>Cancel</Button>
                 </div>
+                {blocked && (
+                  <div className="text-xs rounded border border-yellow-500/40 p-2 space-y-1" data-testid="person-in-pool">
+                    <p className="text-yellow-300">{blocked.message}</p>
+                    <p className="text-[#B0BEC5]">Linked record: <Link className="text-[#00C853] hover:underline"
+                      href={blocked.pool_record.link}>{blocked.pool_record.name || "Candidate Pool record"}</Link></p>
+                    <ol className="list-decimal pl-4 text-[#B0BEC5]">{blocked.steps.map((st) => <li key={st}>{st}</li>)}</ol>
+                  </div>
+                )}
                 {(info.presence?.active_runs ?? 0) > 0 &&
                   <p className="text-xs text-yellow-300">A running run contains this profile – deletion waits until it finishes.</p>}
               </div>

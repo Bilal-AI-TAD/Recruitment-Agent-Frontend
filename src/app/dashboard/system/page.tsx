@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { analyticsAPI } from "@/lib/api";
 import { Toaster } from "react-hot-toast";
 import { GmailConnectionsCard } from "@/components/gmail/GmailConnectionsCard";
+import { COST_LABEL, COST_NOTE, CostTotals, formatUsd } from "@/lib/cost";
 
 const mockServices = [
   { name: "PostgreSQL", status: "healthy", responseTime: "12ms", uptime: "99.9%" },
@@ -23,9 +24,9 @@ export default function SystemPage() {
     totalInputTokens: 0,
     totalOutputTokens: 0,
     totalTokens: 0,
-    totalCost: 0,
-    operationCosts: {} as Record<string, number>,
+    totalCachedTokens: 0,
     totalRequests: 0,
+    costs: null as CostTotals | null,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -42,14 +43,7 @@ export default function SystemPage() {
       ]);
       
       setTokenUsage(usageRes.data?.data || []);
-      setTokenSummary(summaryRes.data || {
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        totalTokens: 0,
-        totalCost: 0,
-        operationCosts: {},
-        totalRequests: 0,
-      });
+      if (summaryRes.data) setTokenSummary(summaryRes.data);
     } catch (error) {
       console.error("Failed to fetch token data:", error);
     } finally {
@@ -58,7 +52,11 @@ export default function SystemPage() {
   };
 
   const totalTokens = tokenUsage.reduce((acc, item) => acc + item.tokens, 0);
-  const totalCost = tokenUsage.reduce((acc, item) => acc + item.cost, 0);
+  const totalCost = tokenUsage.reduce((acc, item) => acc + (item.cost || 0), 0);
+  const periodUnknown = tokenUsage.reduce((acc, item) => acc + (item.unknown_calls || 0), 0);
+  const costs = tokenSummary.costs;
+  const operations = Object.entries(costs?.operations || {});
+  const maxIncurred = Math.max(...operations.map(([, o]) => o.incurred_usd), 0);
   const maxTokens = Math.max(...tokenUsage.map(d => d.tokens), 1);
 
   const operationColors: Record<string, string> = {
@@ -151,15 +149,17 @@ export default function SystemPage() {
                 <p className="text-sm text-[#B0BEC5]">Total Tokens</p>
                 <p className="text-2xl font-bold text-white">{totalTokens.toLocaleString()}</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-[#B0BEC5]">Total Cost</p>
-                <p className="text-2xl font-bold text-[#00C853]">${totalCost.toFixed(2)}</p>
+              <div className="text-right" data-testid="period-cost">
+                <p className="text-sm text-[#B0BEC5]" title={COST_NOTE}>{COST_LABEL}</p>
+                <p className="text-2xl font-bold text-[#00C853]">{tokenUsage.length ? formatUsd(totalCost) : "–"}</p>
+                {periodUnknown > 0 && <p className="text-xs text-yellow-300">+ {periodUnknown} call(s) with unknown cost</p>}
               </div>
             </div>
             
             <div className="h-40 flex items-end gap-2">
               {tokenUsage.slice(-7).map((item, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                <div key={index} className="flex-1 h-full flex flex-col justify-end items-center gap-2"
+                  title={`${item.tokens.toLocaleString()} tokens`}>
                   <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${(item.tokens / maxTokens) * 100}%` }}
@@ -191,56 +191,32 @@ export default function SystemPage() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {Object.entries(tokenSummary.operationCosts).length > 0 ? (
-              Object.entries(tokenSummary.operationCosts).map(([operation, cost]) => (
-                <div key={operation} className="p-4 bg-[#132F4C] rounded-lg">
+            {operations.length > 0 ? (
+              operations.map(([operation, o]) => (
+                <div key={operation} className="p-4 bg-[#132F4C] rounded-lg" data-testid="operation-cost">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#B0BEC5] capitalize">{operation.replace("_", " ")}</span>
-                    <span className="text-white font-medium">${cost.toFixed(4)}</span>
+                    <span className="text-[#B0BEC5] capitalize">{operation.replace(/_/g, " ")} <span className="text-xs text-[#546E7A]">· {o.calls} call(s)</span></span>
+                    <span className="text-white font-medium">{o.incurred_usd > 0 || o.unknown_calls === 0 ? formatUsd(o.incurred_usd) : "Unknown"}</span>
                   </div>
                   <div className="h-2 bg-[#1E3A5F] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full"
-                      style={{ 
-                        width: `${(cost / tokenSummary.totalCost) * 100}%`,
-                        backgroundColor: operationColors[operation] || "#00C853"
-                      }} 
-                    />
+                    <div className="h-full rounded-full"
+                      style={{ width: `${maxIncurred > 0 ? (o.incurred_usd / maxIncurred) * 100 : 0}%`,
+                               backgroundColor: operationColors[operation] || "#00C853" }} />
                   </div>
+                  {(o.reconstructed_usd > 0 || o.unknown_calls > 0 || o.reserved_active_usd > 0) && (
+                    <p className="text-xs text-[#546E7A] mt-1">
+                      {o.reconstructed_usd > 0 && `${formatUsd(o.reconstructed_usd)} reconstructed from logged usage. `}
+                      {o.unknown_calls > 0 && `${o.unknown_calls} call(s) with unknown or uncertain cost. `}
+                      {o.reserved_active_usd > 0 && `${formatUsd(o.reserved_active_usd)} reserved in flight.`}
+                    </p>
+                  )}
                 </div>
               ))
             ) : (
-              <>
-                <div className="p-4 bg-[#132F4C] rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#B0BEC5]">Resume Parsing</span>
-                    <span className="text-white font-medium">$0.00</span>
-                  </div>
-                  <div className="h-2 bg-[#1E3A5F] rounded-full overflow-hidden">
-                    <div className="h-full w-[0%] bg-[#00C853] rounded-full" />
-                  </div>
-                </div>
-                <div className="p-4 bg-[#132F4C] rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#B0BEC5]">Candidate Scoring</span>
-                    <span className="text-white font-medium">$0.00</span>
-                  </div>
-                  <div className="h-2 bg-[#1E3A5F] rounded-full overflow-hidden">
-                    <div className="h-full w-[0%] bg-[#00E676] rounded-full" />
-                  </div>
-                </div>
-                <div className="p-4 bg-[#132F4C] rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#B0BEC5]">AI Calls</span>
-                    <span className="text-white font-medium">$0.00</span>
-                  </div>
-                  <div className="h-2 bg-[#1E3A5F] rounded-full overflow-hidden">
-                    <div className="h-full w-[0%] bg-[#FFB300] rounded-full" />
-                  </div>
-                </div>
-              </>
+              <p className="text-sm text-[#546E7A]">No AI calls recorded yet.</p>
             )}
-            
+            <p className="text-xs text-[#546E7A]">{COST_NOTE}</p>
+
             <div className="pt-4 border-t border-[#2A3F5E]">
               <div className="flex justify-between text-sm">
                 <span className="text-[#B0BEC5]">Total API Requests</span>
@@ -277,11 +253,40 @@ export default function SystemPage() {
               <p className="text-sm text-[#B0BEC5]">Total Tokens</p>
               <p className="text-xl font-bold text-white">{tokenSummary.totalTokens.toLocaleString()}</p>
             </div>
-            <div className="p-4 bg-[#132F4C] rounded-lg">
-              <p className="text-sm text-[#B0BEC5]">Total Cost</p>
-              <p className="text-xl font-bold text-[#00C853]">${tokenSummary.totalCost.toFixed(4)}</p>
+            <div className="p-4 bg-[#132F4C] rounded-lg" data-testid="incurred-cost">
+              <p className="text-sm text-[#B0BEC5]" title={COST_NOTE}>{COST_LABEL}</p>
+              <p className="text-xl font-bold text-[#00C853]">{costs ? formatUsd(costs.incurred_usd) : "Unknown"}</p>
+              {costs && costs.reconstructed_usd > 0 && (
+                <p className="text-xs text-[#546E7A]">incl. {formatUsd(costs.reconstructed_usd)} reconstructed from logged usage</p>
+              )}
             </div>
           </div>
+          {costs && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm" data-testid="cost-status">
+              <div className="p-3 bg-[#132F4C] rounded-lg">
+                <p className="text-[#B0BEC5]">Unknown cost</p>
+                <p className="text-white font-medium">{costs.unknown_calls} call(s)</p>
+                {Object.entries(costs.unknown_reasons).map(([reason, n]) => (
+                  <p key={reason} className="text-xs text-[#546E7A]">{n} × {reason}</p>
+                ))}
+              </div>
+              <div className="p-3 bg-[#132F4C] rounded-lg">
+                <p className="text-[#B0BEC5]">Billing uncertain</p>
+                <p className="text-white font-medium">{costs.uncertain_usd > 0 ? `up to ${formatUsd(costs.uncertain_usd)}` : "None"}</p>
+                <p className="text-xs text-[#546E7A]">Failed calls, counted at their reservation</p>
+              </div>
+              <div className="p-3 bg-[#132F4C] rounded-lg">
+                <p className="text-[#B0BEC5]">Reserved (in flight)</p>
+                <p className="text-white font-medium">{costs.reserved_active_usd > 0 ? formatUsd(costs.reserved_active_usd) : "None"}</p>
+                <p className="text-xs text-[#546E7A]">Not yet incurred</p>
+              </div>
+              <div className="p-3 bg-[#132F4C] rounded-lg">
+                <p className="text-[#B0BEC5]">Daily AI budget</p>
+                <p className="text-white font-medium">{costs.daily_budget_usd === null ? "No shared cap configured" : formatUsd(costs.daily_budget_usd)}</p>
+                <p className="text-xs text-[#546E7A]">Committed in 24 h: {formatUsd(costs.committed_24h_usd)} · prices {costs.price_table_version || "not configured"}</p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

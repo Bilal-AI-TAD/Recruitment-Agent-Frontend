@@ -1,5 +1,6 @@
 "use client";
 
+import { costLabel } from "@/lib/cost";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -111,7 +112,7 @@ function TrendChart({ tokenUsage }: { tokenUsage: any[] }) {
       <CardContent>
         <div className="h-64 flex items-end justify-between gap-2">
           {validUsage.slice(-7).map((item, index) => (
-            <div key={index} className="flex-1 flex flex-col items-center gap-2">
+            <div key={index} className="flex-1 h-full flex flex-col justify-end items-center gap-2">
               <motion.div
                 initial={{ height: 0 }}
                 animate={{ height: `${(item.tokens / maxTokens) * 100}%` }}
@@ -242,8 +243,10 @@ function ActivityFeed({ activities }: { activities: any[] }) {
                   <p className="text-sm text-white">{item.message}</p>
                   <div className="flex items-center gap-3 mt-1">
                     <p className="text-xs text-[#546E7A]">{formatTime(item.timestamp || "")}</p>
-                    {item.cost != null && item.cost > 0 && (
-                      <span className="text-xs text-[#00C853]">${Number(item.cost).toFixed(4)}</span>
+                    {item.cost_status && item.cost_status !== "not_applicable" && (
+                      <span className={costLabel(item.cost, item.cost_status).known ? "text-xs text-[#00C853]" : "text-xs text-yellow-300"}
+                        title={item.cost_reason || "Usage-based cost (estimated, not an invoice)"} data-testid="activity-cost">
+                        {costLabel(item.cost, item.cost_status).text}</span>
                     )}
                   </div>
                 </div>

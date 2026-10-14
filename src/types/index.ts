@@ -143,7 +143,7 @@ export interface APILog {
   output_tokens: number;
   total_tokens: number;
   cached_tokens: number;
-  cost_usd: number;
+  cost_usd: number | null;
   processing_time_ms: number;
   user_id?: string;
   job_id?: string;
@@ -173,6 +173,9 @@ export interface ActivityItem {
   timestamp: string;
   candidate_id?: string;
   job_id?: string;
+  cost_status?: "calculated" | "reconstructed" | "unknown" | "uncertain" | "pending" | "not_applicable" | null;
+  cost_reason?: string | null;
+  reserved_usd?: number | null;
 }
 
 export type ProcessingStatus = "pending" | "processing" | "completed" | "failed" | "duplicate"
@@ -484,13 +487,15 @@ export interface ExternalProfile {
 
 export interface AnalysisRequestInfo {
   request_id: string;
-  status: "queued" | "running" | "completed" | "failed";
+  status: "queued" | "running" | "completed" | "failed" | "needs_identity";
   reserved_usd: number;
   spent_usd: number | null;
   llm_calls: number;
   error: string | null;
   created_at: string | null;
   finished_at: string | null;
+  cost?: { calls: number; incurred_usd: number; unknown_calls: number; uncertain_reserved_usd: number;
+           unknown_reasons: string[]; reserved_by_calls_usd: number; committed_usd: number };
 }
 
 export interface AnalysisState {

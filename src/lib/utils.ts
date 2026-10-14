@@ -23,8 +23,13 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
       .join("; ");
   }
   if (detail && typeof detail === "object") {
-    const structured = detail as { error?: { details?: string }; message?: string };
-    return structured.error?.details || structured.message || fallback;
+    const structured = detail as { error?: { details?: unknown }; message?: unknown };
+    const details = structured.error?.details;
+    // Structured details (e.g. PERSON_IN_POOL with the pool record and steps) carry their own message.
+    const text = typeof details === "string" ? details
+      : (details && typeof details === "object" ? (details as { message?: unknown }).message : undefined);
+    if (typeof text === "string" && text) return text;
+    return typeof structured.message === "string" && structured.message ? structured.message : fallback;
   }
   return (error as Error)?.message || fallback;
 }

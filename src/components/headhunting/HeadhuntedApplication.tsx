@@ -10,6 +10,7 @@ import { candidatesAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { AnalysisState, CandidateAssessment } from "@/types";
 import { SOURCE_KIND, StatusChip } from "./HeadhuntingBits";
+import { COST_LABEL, COST_NOTE, formatUsd } from "@/lib/cost";
 
 /** Recruitment record of an application added from headhunting: provenance, CV, and the explicit paid analysis. */
 export function HeadhuntedApplication({ data, onChanged }: { data: CandidateAssessment; onChanged: () => void }) {
@@ -95,18 +96,45 @@ export function HeadhuntedApplication({ data, onChanged }: { data: CandidateAsse
         ) : (
           <div className="space-y-2">
             <Button size="sm" isLoading={busy === "analysis"} disabled={blockers.length > 0 || running} onClick={analyse}>
-              {`Run AI analysis (paid, max $${(state?.max_cost_usd ?? 0).toFixed(2)})`}
+              {`Run AI analysis (paid · reserves ${formatUsd(state?.max_cost_usd ?? null)} of the daily budget)`}
             </Button>
             {running && <p className="text-xs text-blue-300">Analysis in progress – this page refreshes automatically.</p>}
-            {blockers.map((b) => <p key={b.code} className="text-xs text-[#546E7A]" data-testid="analysis-blocker">{b.message}</p>)}
+            {/* The identity check is already shown above, next to its confirm button below. */}
+            {blockers.filter((b) => b.code !== "CV_IDENTITY_UNCONFIRMED" || !data.headhunting?.cv_name_mismatch).map((b) =>
+              <p key={b.code} className="text-xs text-[#546E7A]" data-testid="analysis-blocker">{b.message}</p>)}
           </div>
         )}
         {latest && (
-          <p className="text-xs text-[#B0BEC5]" data-testid="analysis-request">
-            Last request: {latest.status}
-            {latest.spent_usd !== null && ` · ${latest.llm_calls} AI call(s), $${latest.spent_usd.toFixed(4)}`}
-            {latest.status === "failed" && latest.error && <span className="block text-[#FF8A80]">{latest.error}</span>}
-          </p>
+          <div className="text-xs text-[#B0BEC5] space-y-0.5" data-testid="analysis-request">
+            <p>Last request: {latest.status === "needs_identity" ? "stopped before scoring – identity check needed"
+              : latest.status.replace("_", " ")} · {latest.llm_calls} AI call(s)</p>
+            <p data-testid="analysis-incurred" title={COST_NOTE}>{COST_LABEL}: <strong className="text-white">
+              {latest.cost ? formatUsd(latest.cost.incurred_usd) : "Unknown"}</strong>
+              {latest.cost && latest.cost.unknown_calls > 0 &&
+                ` + ${latest.cost.unknown_calls} call(s) unknown/uncertain (counted at up to ${formatUsd(latest.cost.uncertain_reserved_usd)})`}</p>
+            <p className="text-[#546E7A]">Reserved before the analysis: {formatUsd(latest.reserved_usd)} – a reservation against the
+              daily budget, not a cap; every call is bounded and reconciled from reported usage.</p>
+            {latest.status === "failed" && latest.error &&
+              <span className="block text-[#FF8A80]">{latest.error}</span>}
+          </div>
+        )}
+        {blockers.some((b) => b.code === "CV_IDENTITY_UNCONFIRMED") && (
+          <Button size="sm" variant="secondary" isLoading={busy === "identity"} data-testid="confirm-identity"
+            onClick={async () => {
+              setBusy("identity");
+              try {
+                await candidatesAPI.confirmCvIdentity(data.candidate_id);
+                toast.success("Identity confirmed – the analysis can continue");
+                onChanged();
+                await load();
+              } catch (error) {
+                toast.error(getErrorMessage(error, "Could not confirm"));
+              } finally {
+                setBusy(null);
+              }
+            }}>
+            Confirm this CV belongs to {data.headhunting?.provenance?.[0]?.display_name || "this person"}
+          </Button>
         )}
       </div>
 

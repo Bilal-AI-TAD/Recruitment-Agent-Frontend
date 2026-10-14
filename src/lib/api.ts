@@ -79,6 +79,7 @@ export const candidatesAPI = {
     return api.post(`/candidates/${candidateId}/cv`, form, { headers: { "Content-Type": "multipart/form-data" } });
   },
   analysis: (candidateId: string) => api.get(`/candidates/${candidateId}/analysis`),
+  confirmCvIdentity: (candidateId: string) => api.post(`/candidates/${candidateId}/confirm-cv-identity`),
   requestAnalysis: (candidateId: string) =>
     api.post(`/candidates/${candidateId}/analysis`, { client_request_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) }),
   getScoresByJob: (jobId: string) => api.get(`/jobs/${jobId}/ranking`),
