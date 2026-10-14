@@ -662,6 +662,7 @@ export interface HHRun {
   run_id: string;
   job_id: string;
   mode: "rules-diagnostic" | "ai";
+  cost_class?: "free" | "paid_ai";
   status: string;
   stage: string;
   status_reason: string | null;

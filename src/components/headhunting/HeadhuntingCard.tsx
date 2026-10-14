@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { headhuntingAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { HHConfig, HHRun } from "@/types";
-import { DisclaimerBanner, RunStatusBadge } from "./HeadhuntingBits";
+import { CostBadge, DisclaimerBanner, RunStatusBadge } from "./HeadhuntingBits";
 
 const ACTIVE = ["queued", "running"];
 
@@ -60,14 +60,16 @@ function StartRunModal({ jobId, jobLocation, config, onClose, onStarted }: {
           <p className="text-sm text-white font-medium">Mode</p>
           <label className="flex items-start gap-2 text-sm text-[#B0BEC5]">
             <input type="radio" checked={mode === "rules-diagnostic"} onChange={() => setMode("rules-diagnostic")} />
-            <span><span className="text-white">Rules diagnostic</span> – free; keyword evidence is shown as &quot;indicated&quot; at most.</span>
+            <span><span className="text-white font-medium">Free search – rules only</span> <CostBadge mode="rules-diagnostic" />
+              <span className="block">No AI and no cost. Keyword evidence is shown as &quot;indicated&quot; at most.</span></span>
           </label>
           <label className="flex items-start gap-2 text-sm text-[#B0BEC5]">
             <input type="radio" disabled={!aiAllowed} checked={mode === "ai"} onChange={() => setMode("ai")} />
             <span>
-              <span className={aiAllowed ? "text-white" : ""}>AI assessment ({config.ai.model})</span> – spends money: at most
+              <span className={aiAllowed ? "text-white font-medium" : ""}>AI assessment ({config.ai.model})</span> <CostBadge mode="ai" />
+              <span className="block">Paid: at most
               {" "}${config.ai.max_cost_usd_per_run?.toFixed(2)} per run
-              {config.ai.daily_remaining_usd != null && <> · ${config.ai.daily_remaining_usd.toFixed(2)} left today</>}.
+              {config.ai.daily_remaining_usd != null && <> · ${config.ai.daily_remaining_usd.toFixed(2)} left today</>}.</span>
               {!aiAllowed && <span className="block text-xs text-[#546E7A]">
                 {config.ai.unavailable_reason || "Needs the headhunting.run_ai permission."}</span>}
             </span>
@@ -86,7 +88,9 @@ function StartRunModal({ jobId, jobLocation, config, onClose, onStarted }: {
         <p className="text-xs text-[#546E7A]">Limits are enforced by the server. No one is contacted; LinkedIn profiles are never fetched.</p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} isLoading={busy}>Start</Button>
+          <Button onClick={submit} isLoading={busy}>
+            {mode === "ai" ? `Start paid AI run (max $${config.ai.max_cost_usd_per_run?.toFixed(2)})` : "Start free run"}
+          </Button>
         </div>
       </motion.div>
     </div>
@@ -151,10 +155,10 @@ export function HeadhuntingCard({ jobId, jobLocation, isOpen }: { jobId: string;
           {runs.slice(0, 5).map((r) => (
             <li key={r.run_id} className="py-2 flex items-center justify-between gap-2 text-sm">
               <Link href={`/dashboard/jobs/${jobId}/headhunting/${r.run_id}`} className="text-white hover:text-[#00C853]">
-                {r.created_at ? new Date(r.created_at).toLocaleString() : r.run_id} · {r.filters?.location} · {r.mode === "ai" ? "AI" : "Rules"}
+                {r.created_at ? new Date(r.created_at).toLocaleString() : r.run_id} · {r.filters?.location}
               </Link>
               <span className="flex items-center gap-2 text-xs text-[#B0BEC5]">
-                {(r.counts?.prospects as number | undefined) ?? 0} prospects <RunStatusBadge status={r.status} />
+                <CostBadge mode={r.mode} /> {(r.counts?.prospects as number | undefined) ?? 0} prospects <RunStatusBadge status={r.status} />
               </span>
             </li>
           ))}

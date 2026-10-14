@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { headhuntingAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { HHProspect, HHReviewStatus, HHRun } from "@/types";
-import { DISAGREEMENT, DisclaimerBanner, REQUIREMENT_STATUS, RunStatusBadge, SOURCE_KIND, StatusChip, issueText, prospectLabel } from "@/components/headhunting/HeadhuntingBits";
+import { CostBadge, DISAGREEMENT, DisclaimerBanner, REQUIREMENT_STATUS, RunStatusBadge, SOURCE_KIND, StatusChip, issueText, prospectLabel } from "@/components/headhunting/HeadhuntingBits";
 import { ProspectDetail } from "@/components/headhunting/ProspectDetail";
 
 const STAGES = ["requirements", "queries", "search", "screen", "research", "assess", "done"];
@@ -147,8 +147,8 @@ export default function HeadhuntingRunPage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">Headhunting run
-              {run && <RunStatusBadge status={run.status} />}</h1>
-            {run && <p className="text-sm text-[#B0BEC5]">{run.filters?.location} · {run.mode === "ai" ? `AI (${run.model})` : "Rules diagnostic"}
+              {run && <CostBadge mode={run.mode} />}{run && <RunStatusBadge status={run.status} />}</h1>
+            {run && <p className="text-sm text-[#B0BEC5]">{run.filters?.location} · {run.mode === "ai" ? `AI assessment (${run.model}) – paid, max $${run.limits?.max_cost_usd}` : "Free search – rules only, no AI cost"}
               {run.status_reason ? ` · ${run.status_reason}` : ""}</p>}
           </div>
         </div>

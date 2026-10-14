@@ -76,6 +76,13 @@ export function StatusCounts({ counts }: { counts: Record<HHRequirementStatus, n
   );
 }
 
+/** Free search (rules only, no AI cost) and paid AI runs must never look alike. */
+export function CostBadge({ mode }: { mode: string }) {
+  return mode === "ai"
+    ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#FF9800]/15 text-[#FFB74D] border border-[#FF9800]/40">AI · PAID</span>
+    : <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#00C853]/10 text-[#00C853] border border-[#00C853]/40">FREE</span>;
+}
+
 export function RunStatusBadge({ status }: { status: string }) {
   const s = RUN_STATUS[status] || { label: status, className: "bg-[#546E7A]/20 text-[#B0BEC5]" };
   return <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", s.className)}>{s.label}</span>;
