@@ -31,11 +31,12 @@ function requestId() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-interface TemplateOption { template: string; label: string; subject: string; body: string }
+interface TemplateOption { template: string; label: string; subject: string; body: string; footer?: string | null }
 
 /** E-mails to one candidate: compose -> approval (separate, recorded) -> send, with honest status and replies. */
 export function MessagesPanel({ applicationId, permissions }: { applicationId: string; permissions: string[] }) {
-  const canWrite = permissions.includes("mail.send");
+  const canWrite = permissions.includes("mail.send") || permissions.includes("headhunting.outreach");
+  const canMarkOptOut = ["mail.send", "mail.approve_send", "headhunting.outreach"].some((p) => permissions.includes(p));
   const canApprove = permissions.includes("mail.approve_send");
   const [thread, setThread] = useState<CandidateThread | null>(null);
   const [composing, setComposing] = useState(false);
@@ -43,6 +44,7 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
   const [template, setTemplate] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [footer, setFooter] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const requestKey = useRef(requestId());
 
@@ -68,7 +70,7 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
       const data = res.data as { templates: TemplateOption[] };
       setTemplates(data.templates);
       const first = data.templates[0];
-      setTemplate(first.template); setSubject(first.subject); setBody(first.body);
+      setTemplate(first.template); setSubject(first.subject); setBody(first.body); setFooter(first.footer || null);
       setComposing(true);
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not prepare the message"));
@@ -78,7 +80,7 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
   const pickTemplate = (key: string) => {
     const t = templates.find((x) => x.template === key);
     if (!t) return;
-    setTemplate(key); setSubject(t.subject); setBody(t.body);
+    setTemplate(key); setSubject(t.subject); setBody(t.body); setFooter(t.footer || null);
   };
 
   const submit = async () => {
@@ -114,7 +116,8 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
   return (
     <Card className="lg:col-span-3" data-testid="messages-panel">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Mail size={18} className="text-[#00C853]" /> Messages</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Mail size={18} className="text-[#00C853]" />
+          {thread.outreach ? "Outreach (headhunted – has not applied)" : "Messages"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -122,9 +125,21 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
             To: {thread.recipient ? <span className="text-white">{thread.recipient}</span> : <span className="text-yellow-200">no e-mail address on record yet</span>}
             {thread.sending.mailbox && <> · from {thread.sending.mailbox}</>}
           </p>
-          {canWrite && !composing && thread.can_compose && (
-            <Button size="sm" onClick={startCompose} disabled={!thread.recipient}><PenLine size={14} className="mr-1" /> Write e-mail</Button>
-          )}
+          <div className="flex gap-2">
+            {thread.suppressed
+              ? <span className="px-2 py-0.5 rounded-full text-xs bg-[#FF5252]/15 text-[#FF8A80]" data-testid="suppressed">Do not contact</span>
+              : canMarkOptOut && thread.recipient && (
+                <Button size="sm" variant="ghost" isLoading={busy === "optout"}
+                  onClick={() => window.confirm("Mark this address as \"do not contact\"? No further e-mail can be written or sent to it. Only the owner can undo this.") &&
+                    act("optout", () => mailAPI.optOut(applicationId), "Marked as do not contact")}>
+                  Do not contact
+                </Button>
+              )}
+            {canWrite && !composing && thread.can_compose && (
+              <Button size="sm" onClick={startCompose} disabled={!thread.recipient}><PenLine size={14} className="mr-1" />
+                {thread.outreach ? "Write outreach e-mail" : "Write e-mail"}</Button>
+            )}
+          </div>
         </div>
         {thread.compose_blocked_reason && (
           <p className="text-xs text-[#B0BEC5]" data-testid="compose-blocked">{thread.compose_blocked_reason}</p>
@@ -147,6 +162,11 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
             <input className={inputClass} aria-label="Subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
             <textarea className={cn(inputClass, "min-h-40")} aria-label="Message" value={body} maxLength={10000}
               onChange={(e) => setBody(e.target.value)} />
+            {footer && (
+              <div className="text-xs text-[#B0BEC5] whitespace-pre-wrap border-t border-[#2A3F5E] pt-2" data-testid="outreach-footer">
+                <span className="text-[#546E7A]">Added automatically (cannot be edited):</span>{"\n"}{footer}
+              </div>
+            )}
             <p className="text-xs text-[#546E7A]">Plain text. Nothing is sent now: the message waits for an approval of exactly this text.</p>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="ghost" onClick={() => setComposing(false)}>Cancel</Button>
@@ -186,6 +206,7 @@ function MessageItem({ message: m, busy, canApprove, replies, act }: {
         <span className={cn("px-2 py-0.5 rounded-full text-xs", OUTBOX_TONE[m.status])} data-testid="outbox-status">{m.status_label}</span>
       </div>
       {m.body && <p className="mt-2 text-sm text-[#E0E0E0] whitespace-pre-wrap break-words">{m.body}</p>}
+      {m.footer && <p className="mt-1 text-xs text-[#B0BEC5] whitespace-pre-wrap break-words">{m.footer}</p>}
       {m.status_detail && <p className="mt-2 text-xs text-[#B0BEC5]">{m.status_detail}</p>}
       <div className="flex flex-wrap gap-2 mt-2">
         {m.can_approve && canApprove && (
@@ -218,6 +239,7 @@ function MessageItem({ message: m, busy, canApprove, replies, act }: {
             <li key={r.inbound_id} className="text-sm">
               <p className={cn("text-xs flex items-center gap-1", r.is_bounce ? "text-[#FF8A80]" : "text-[#B0BEC5]")}>
                 <CornerDownRight size={12} /> {r.is_bounce ? "Non-delivery report" : "Reply"} from {r.sender_name || r.sender_email}
+                {r.opt_out && <span className="ml-1 px-1.5 rounded bg-[#FF5252]/15 text-[#FF8A80]">opt-out – no further e-mails</span>}
                 {r.received_at && <> · {new Date(r.received_at).toLocaleString()}</>}
                 {r.has_attachments && " · has attachments"}
               </p>

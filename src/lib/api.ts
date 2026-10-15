@@ -205,6 +205,8 @@ export const mailAPI = {
   templates: (applicationId: string) => api.get(`/candidates/${applicationId}/messages/templates`),
   compose: (applicationId: string, data: { template: string; subject: string; body: string; client_request_id: string }) =>
     api.post(`/candidates/${applicationId}/messages`, data),
+  optOut: (applicationId: string) => api.post(`/candidates/${applicationId}/opt-out`),
+  suppressions: () => api.get("/mail/suppressions"),
 };
 
 export const headhuntingAPI = {

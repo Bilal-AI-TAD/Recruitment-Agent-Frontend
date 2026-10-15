@@ -159,7 +159,7 @@ export default function CandidateDetailPage() {
   const candidateId = params.id as string;
   const { user } = useAuth();
   const permissions = user?.permissions || [];
-  const canSeeMessages = permissions.includes("mail.send") || permissions.includes("mail.approve_send");
+  const canSeeMessages = ["mail.send", "mail.approve_send", "headhunting.outreach"].some((p) => permissions.includes(p));
   const [data, setData] = useState<CandidateAssessment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);

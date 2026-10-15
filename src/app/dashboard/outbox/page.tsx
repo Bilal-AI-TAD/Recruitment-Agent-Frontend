@@ -89,6 +89,8 @@ export default function OutboxPage() {
                   <div className="min-w-0">
                     <p className="text-white font-medium break-words">
                       {m.kind === "account_invitation" ? "Account invitation" : m.subject}
+                      {m.kind === "headhunting_outreach" && <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-purple-500/15 text-purple-300">Outreach – has not applied</span>}
+                      {m.kind === "live_check" && <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-300">Live check</span>}
                     </p>
                     <p className="text-xs text-[#546E7A] mt-0.5 break-all">
                       To {m.recipients.join(", ")} · written by {m.created_by || "–"}
@@ -100,6 +102,7 @@ export default function OutboxPage() {
                   <span className={cn("px-2 py-0.5 rounded-full text-xs", OUTBOX_TONE[m.status])}>{m.status_label}</span>
                 </div>
                 {m.body && <p className="mt-2 text-sm text-[#E0E0E0] whitespace-pre-wrap break-words max-h-40 overflow-y-auto">{m.body}</p>}
+                {m.footer && <p className="mt-1 text-xs text-[#B0BEC5] whitespace-pre-wrap break-words">{m.footer}</p>}
                 {m.status_detail && <p className="mt-1 text-xs text-[#B0BEC5]">{m.status_detail}</p>}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {m.can_approve && (

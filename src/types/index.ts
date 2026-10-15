@@ -312,7 +312,8 @@ export interface CandidateAssessment extends CandidateCore {
   assessment: Assessment | null;
   cv_required?: boolean;
   headhunting?: { provenance: ExternalProfile[]; open_identity_reviews: number; analysis_requests: AnalysisRequestInfo[];
-                  cv_name_mismatch?: { cv_name: string; profile_name: string; message: string } | null };
+                  cv_name_mismatch?: { cv_name: string; profile_name: string; message: string } | null;
+                  outreach?: { contacted_at: string | null; status: string | null } };
 }
 
 // ---------------------------------------------------------------------------- Candidate Pool
@@ -642,6 +643,11 @@ export interface GmailSearchResultItem {
 
 export interface GmailSearchResponse {
   search_id: string;
+  complete?: boolean;
+  coverage?: { windows_total: number; windows_done: number; period_from: string | null; period_to: string | null;
+               searched_from: string | null; searched_to: string | null };
+  hidden_reasons?: Record<string, number>;
+  pending_preview?: number;
   provider?: "gmail" | "outlook";
   job_id?: string | null;
   mode: "narrow" | "broad";
@@ -878,7 +884,8 @@ export type OutboxStatus = "awaiting_approval" | "approved" | "draft_created" | 
 
 export interface OutboxMessage {
   outbox_id: string;
-  kind: "candidate_message" | "account_invitation";
+  kind: "candidate_message" | "headhunting_outreach" | "account_invitation" | "live_check";
+  footer?: string | null;
   template: string;
   subject: string;
   body: string | null;
@@ -915,10 +922,13 @@ export interface InboundReply {
   text_excerpt: string | null;
   has_attachments: boolean;
   correlated_by: "conversation" | "in_reply_to" | "references";
+  opt_out?: boolean;
 }
 
 export interface CandidateThread {
   recipient: string | null;
+  outreach?: boolean;
+  suppressed?: boolean;
   can_compose: boolean;
   compose_blocked_reason: string | null;
   sending: MailSendingStatus;

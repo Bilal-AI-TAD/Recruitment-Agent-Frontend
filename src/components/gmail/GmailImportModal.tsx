@@ -389,6 +389,15 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                       )}
                     </div>
                   </div>
+                  {search.coverage && search.coverage.windows_total > 0 && (
+                    <p className="mb-2 text-xs text-[#546E7A]" data-testid="scan-coverage">
+                      {search.complete ? "Every e-mail in the period was checked" : "Checked so far"}:{" "}
+                      {search.coverage.searched_from ? `${formatDate(search.coverage.searched_from)} – ${formatDate(search.coverage.searched_to)}` : "not yet"}
+                      {" "}({search.coverage.windows_done} of {search.coverage.windows_total} periods)
+                      {search.totals.listed ? ` · ${search.totals.listed} e-mails looked at` : ""}.
+                      {" "}Results reflect the mailbox when each period was searched.
+                    </p>
+                  )}
                   {search.incomplete && (
                     <div className="mb-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-200 flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-2"><AlertTriangle size={16} /> Search incomplete. {search.incomplete_reason}

@@ -71,7 +71,14 @@ export function HeadhuntedApplication({ data, onChanged }: { data: CandidateAsse
         {data.pool_candidate_id && <Link href={`/dashboard/candidate-pool/${data.pool_candidate_id}`}
           className="text-sm text-[#00C853] hover:underline">View in Candidate Pool</Link>}
       </div>
-      <p className="text-xs text-[#B0BEC5]">This person has not applied. No one has been contacted by the app.</p>
+      <p className="text-xs text-[#B0BEC5]" data-testid="contact-status">
+        This person has not applied.{" "}
+        {data.headhunting?.outreach?.contacted_at
+          ? `Contacted by an approved outreach e-mail on ${new Date(data.headhunting.outreach.contacted_at).toLocaleDateString()}.`
+          : data.headhunting?.outreach?.status
+            ? "An outreach e-mail is prepared but has not been sent."
+            : "No one has been contacted by the app."}
+      </p>
       {data.headhunting?.cv_name_mismatch && (
         <p className="text-xs text-yellow-300 flex items-center gap-1" data-testid="cv-name-mismatch">
           <AlertTriangle size={12} /> {data.headhunting.cv_name_mismatch.message}</p>
