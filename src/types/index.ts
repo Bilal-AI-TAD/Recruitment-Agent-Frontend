@@ -610,6 +610,40 @@ export interface GmailVariants {
   source: "ai" | "local";
   model: string | null;
   edited: boolean;
+  ai_refused?: boolean;
+}
+
+/** One sample subject tested against a job's phrases (no mailbox, no AI). */
+export interface MailPhrasePreview {
+  subject: string;
+  matches: boolean;
+  level: "strong" | "possible" | "weak" | "none";
+  phrase: string | null;
+  explanation: string;
+  other_jobs: { job_id: string; title: string }[];
+}
+
+/** An e-mail whose subject names the job but that cannot be imported - with the reason. */
+export interface MailSkippedMessage {
+  message_id: string;
+  subject: string;
+  received_at: string | null;
+  sender_domain: string | null;
+  reason: string;
+  detail: string | null;
+}
+
+export interface MailSearchSummary {
+  listed: number;
+  subject_matched: number;
+  importable: number;
+  already_imported: number;
+  no_eligible_cv: number;
+  not_matching: number;
+  own_mail: number;
+  outside_period: number;
+  empty_reason: "no_messages" | "none_matched" | "all_imported" | "no_eligible_cv" | "nothing_importable" | "incomplete" | null;
+  empty_text: string | null;
 }
 
 export interface GmailAttachmentPreview {
@@ -639,6 +673,8 @@ export interface GmailSearchResultItem {
   match: { level: "strong" | "possible" | "weak"; rank: number; explanation: string; variant: string | null;
            broad_only: boolean };
   attachments: GmailAttachmentPreview[];
+  /** Other open jobs this e-mail's subject also names - HR confirms the job before importing. */
+  other_jobs?: { job_id: string; title: string }[];
 }
 
 export interface GmailSearchResponse {
@@ -647,6 +683,8 @@ export interface GmailSearchResponse {
   coverage?: { windows_total: number; windows_done: number; period_from: string | null; period_to: string | null;
                searched_from: string | null; searched_to: string | null };
   hidden_reasons?: Record<string, number>;
+  skipped?: MailSkippedMessage[];
+  summary?: MailSearchSummary;
   pending_preview?: number;
   provider?: "gmail" | "outlook";
   job_id?: string | null;

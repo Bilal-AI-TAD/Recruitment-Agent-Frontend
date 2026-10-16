@@ -12,7 +12,7 @@ import { gmailAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import {
   GmailAttachmentPreview, GmailConnection, GmailConnectionsResponse, GmailImportRun, GmailItemStatus,
-  GmailSearchResponse, GmailSearchResultItem, GmailVariants,
+  GmailSearchResponse, GmailSearchResultItem, GmailVariants, MailPhrasePreview, MailSkippedMessage,
 } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/components/pool/PoolBits";
@@ -88,6 +88,12 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [run, setRun] = useState<GmailImportRun | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState<MailSkippedMessage[]>([]);
+  const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ from: string; value: string } | null>(null);
+  const [previewText, setPreviewText] = useState("");
+  const [preview, setPreview] = useState<MailPhrasePreview[] | null>(null);
   const requestKey = useRef(requestId());
   const notified = useRef<string | null>(null);
 
@@ -128,17 +134,47 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     return () => clearInterval(t);
   }, [run, loadRun, onImported]);
 
-  const regenerate = async () => {
+  const regenerate = async (useAi = false) => {
     if (!jobId) return;
-    setBusy("variants");
+    if (useAi && !window.confirm("Ask the AI for more phrases? Only the job title and a short excerpt of the "
+      + "requirements are sent (never e-mails), and it counts towards the AI budget.")) return;
+    setBusy(useAi ? "ai" : "variants");
     try {
-      const res = await gmailAPI.regenerateVariants(jobId);
+      const res = await gmailAPI.regenerateVariants(jobId, useAi);
       const v = res.data as GmailVariants;
       setVariants(v);
       setList(v.variants);
       setEdited(false);
+      setPreview(null);
+      if (useAi && v.ai_refused) toast("AI suggestions are not available (AI is disabled or over budget). The phrases were built from the job title.");
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not regenerate variations"));
+      toast.error(getErrorMessage(err, "Could not rebuild the phrases"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveEdit = () => {
+    if (!editing) return;
+    const v = editing.value.trim();
+    if (v && v !== editing.from && !list.some((x) => x.toLowerCase() === v.toLowerCase())) {
+      setList(list.map((x) => (x === editing.from ? v : x)));
+      setEdited(true);
+      setPreview(null);
+    }
+    setEditing(null);
+  };
+
+  const runPreview = async () => {
+    if (!jobId) return;
+    const subjects = previewText.split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 20);
+    if (!subjects.length || !list.length) return;
+    setBusy("preview");
+    try {
+      const res = await gmailAPI.previewVariants(jobId, list, subjects);
+      setPreview((res.data as { results: MailPhrasePreview[] }).results);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not test the phrases"));
     } finally {
       setBusy(null);
     }
@@ -164,6 +200,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       "without naming this job.\n\nThese results are marked as weak matches. Only previews are read; nothing is " +
       "imported until you select attachments. Continue?")) return;
     setBusy(mode);
+    setSearchError(null);
     try {
       if (edited && jobId) {
         await gmailAPI.saveVariants(jobId, list);
@@ -176,10 +213,15 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       const data = res.data as GmailSearchResponse;
       setSearch(data);
       setResults(data.results);
+      setSkipped(data.skipped || []);
       setSelected({});
-      if (!data.results.length) toast("No matching e-mails with CV attachments in this period.");
+      setConfirmed(new Set());
     } catch (err) {
-      toast.error(getErrorMessage(err, "Mailbox search failed"));
+      // A failed search is never shown as "no results": nothing was checked.
+      setSearch(null);
+      setResults([]);
+      setSkipped([]);
+      setSearchError(getErrorMessage(err, "The mailbox could not be searched"));
     } finally {
       setBusy(null);
     }
@@ -196,8 +238,12 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
         const seen = new Set(prev.map((r) => r.message_id));
         return [...prev, ...data.results.filter((r) => !seen.has(r.message_id))];
       });
+      setSkipped((prev) => {
+        const seen = new Set(prev.map((r) => r.message_id));
+        return [...prev, ...(data.skipped || []).filter((r) => !seen.has(r.message_id))];
+      });
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not load more results"));
+      toast.error(getErrorMessage(err, "Could not load more results – the e-mails checked so far are still shown"));
     } finally {
       setBusy(null);
     }
@@ -222,13 +268,16 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     setSelected(next);
   };
   const selectedCount = useMemo(() => Object.values(selected).reduce((n, s) => n + s.size, 0), [selected]);
+  const needsConfirmation = useMemo(() => results.filter((r) => (r.other_jobs || []).length
+    && selected[r.message_id]?.size && !confirmed.has(r.message_id)).length, [results, selected, confirmed]);
 
   const startImport = async () => {
     if (!search || !selectedCount) return;
     setBusy("import");
     try {
       const selections = Object.entries(selected).filter(([, parts]) => parts.size)
-        .map(([message_id, parts]) => ({ message_id, part_ids: Array.from(parts) }));
+        .map(([message_id, parts]) => ({ message_id, part_ids: Array.from(parts),
+                                          ...(confirmed.has(message_id) ? { confirm_job: true } : {}) }));
       const res = await gmailAPI.startImport({ search_id: search.search_id, selections,
                                                client_request_id: requestKey.current });
       requestKey.current = requestId();
@@ -317,35 +366,46 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
 
               <section>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <label className="text-xs text-[#B0BEC5]">{poolOnly ? "Job titles to look for in subjects" : "Job-title and subject variations"}</label>
-                  <div className="flex items-center gap-2">
+                  <label className="text-xs text-[#B0BEC5]">{poolOnly ? "Job titles to look for in subjects" : "Subject phrases for this job"}</label>
+                  <div className="flex flex-wrap items-center gap-2">
                     {variants && !poolOnly && (
-                      <span className="text-xs text-[#546E7A] flex items-center gap-1">
-                        <Sparkles size={12} /> {variants.source === "ai" ? "Suggested by AI" : "Built by local rules (AI unavailable)"}
+                      <span className="text-xs text-[#546E7A]">
+                        {variants.source === "ai" ? "Built from the job title + AI suggestions" : "Built from the job title (no AI)"}
                         {variants.edited || edited ? " · edited by HR" : ""}
                       </span>
                     )}
                     {!poolOnly && (
-                      <Button size="sm" variant="ghost" onClick={regenerate} isLoading={busy === "variants"}>
-                        <RefreshCw size={14} className="mr-1" /> Regenerate
-                      </Button>
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => regenerate(false)} isLoading={busy === "variants"}
+                          title="Discard edits and rebuild the phrases from the job title">
+                          <RefreshCw size={14} className="mr-1" /> Reset to suggested
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => regenerate(true)} isLoading={busy === "ai"}
+                          title="Optional: ask the AI for more wordings (uses the AI budget)">
+                          <Sparkles size={14} className="mr-1" /> Suggest more with AI
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
                 {!variants && !poolOnly ? <p className="text-sm text-[#B0BEC5]"><Loader2 size={14} className="inline animate-spin mr-1" /> Preparing variations…</p> : (
                   <>
                     <div className="flex flex-wrap gap-2">
-                      {list.map((v) => (
+                      {list.map((v) => editing?.from === v ? (
+                        <input key={v} autoFocus className={cn(inputClass, "py-1 text-xs w-64")} aria-label={`Edit ${v}`}
+                          value={editing.value} maxLength={80} onChange={(e) => setEditing({ from: v, value: e.target.value })}
+                          onBlur={saveEdit} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }} />
+                      ) : (
                         <span key={v} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-[#132F4C] border border-[#2A3F5E] text-[#E0E0E0]">
-                          {v}
+                          <button className="hover:text-white" title="Click to edit" onClick={() => setEditing({ from: v, value: v })}>{v}</button>
                           <button aria-label={`Remove ${v}`} className="hover:text-[#FF5252]"
-                            onClick={() => { setList(list.filter((x) => x !== v)); setEdited(true); }}><X size={12} /></button>
+                            onClick={() => { setList(list.filter((x) => x !== v)); setEdited(true); setPreview(null); }}><X size={12} /></button>
                         </span>
                       ))}
                     </div>
                     <div className="flex gap-2 mt-2">
                       <input className={cn(inputClass, "flex-1")} aria-label="Add a job title"
-                        placeholder={poolOnly ? "Add a job title, e.g. Warehouse Supervisor" : "Add a variation, e.g. Application for the position of …"}
+                        placeholder={poolOnly ? "Add a job title, e.g. Warehouse Supervisor" : "Add a phrase, e.g. Full Stack ML Engineer"}
                         value={newVariant} maxLength={80} onChange={(e) => setNewVariant(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") addVariant(newVariant); }} />
                       <Button size="sm" variant="secondary" onClick={() => addVariant(newVariant)}><Plus size={14} /></Button>
@@ -360,9 +420,35 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                       </p>
                     )}
                     <p className="text-xs text-[#546E7A] mt-2">
-                      The mailbox is asked only for e-mails with a PDF or DOCX attachment whose subject contains these title words.
-                      Each result is then matched here (word order, abbreviations such as AI / Artificial Intelligence, small typos).
+                      Every e-mail received in the period is checked. A subject matches when it contains all the words of one
+                      phrase, in any order – ignoring case, spaces, hyphens and punctuation, and prefixes such as RE:, FW:,
+                      &quot;Application for&quot;, &quot;CV for&quot; or &quot;Resume for&quot;. AI / Artificial Intelligence and
+                      Fullstack / Full-Stack / Full Stack count as the same. A small typo is shown as a possible match.
                     </p>
+                    {!poolOnly && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-[#B0BEC5] cursor-pointer">Test the phrases with sample subjects</summary>
+                        <textarea className={cn(inputClass, "w-full mt-2 h-20")} aria-label="Sample subjects, one per line"
+                          placeholder={"One subject per line, e.g.\nRE: Application for Full-Stack AI Engineer"}
+                          value={previewText} onChange={(e) => { setPreviewText(e.target.value); setPreview(null); }} />
+                        <div className="flex justify-end mt-1">
+                          <Button size="sm" variant="secondary" onClick={runPreview} isLoading={busy === "preview"}
+                            disabled={!previewText.trim() || !list.length}>Test</Button>
+                        </div>
+                        {preview && (
+                          <ul className="mt-2 space-y-1" data-testid="phrase-preview">
+                            {preview.map((p) => (
+                              <li key={p.subject} className="text-xs flex flex-wrap items-start gap-2">
+                                {p.matches ? <CheckCircle2 size={14} className="text-[#00C853] mt-0.5" /> : <XCircle size={14} className="text-[#FF8A80] mt-0.5" />}
+                                <span className="text-[#E0E0E0] break-words">{p.subject}</span>
+                                <span className="text-[#546E7A]">{p.matches ? (p.level === "possible" ? `possible match – ${p.explanation}` : `matches “${p.phrase}”`) : "does not match – not offered"}</span>
+                                {p.other_jobs.length > 0 && <span className="text-yellow-300">also names: {p.other_jobs.map((j) => j.title).join(", ")}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </details>
+                    )}
                   </>
                 )}
                 <div className="flex justify-end mt-3">
@@ -373,12 +459,18 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                 </div>
               </section>
 
+              {searchError && (
+                <div role="alert" className="rounded-lg border border-[#FF5252]/40 bg-[#FF5252]/10 p-3 text-sm text-[#FF8A80] flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2"><XCircle size={16} /> Search failed – no e-mails were checked. {searchError}</span>
+                  <Button size="sm" variant="secondary" onClick={() => runSearch("narrow")} isLoading={busy === "narrow"}>Retry</Button>
+                </div>
+              )}
+
               {search && (
                 <section>
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <p className="text-sm text-[#E0E0E0]">
-                      {results.length} matching e-mail(s){search.mode === "broad" ? " (broader search)" : ""}
-                      {search.totals.hidden > 0 && <span className="text-[#546E7A]"> · {search.totals.hidden} other e-mail(s) did not match and are hidden</span>}
+                      {results.length} matching e-mail(s) with attachments{search.mode === "broad" ? " (broader search)" : ""}
                     </p>
                     <div className="flex gap-2">
                       {results.some((r) => r.match.level === "strong") && (
@@ -405,10 +497,33 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                       {search.can_load_more && <Button size="sm" variant="secondary" onClick={loadMore} isLoading={busy === "more"}>Load more</Button>}
                     </div>
                   )}
+                  {search.summary && <SearchSummary summary={search.summary} poolOnly={poolOnly} />}
                   <ul className="space-y-3">
                     {results.map((r) => <ResultCard key={r.message_id} result={r} selected={selected[r.message_id]}
-                                                    onToggle={(part) => toggle(r.message_id, part)} selectable={selectable} />)}
+                                                    onToggle={(part) => toggle(r.message_id, part)} selectable={selectable}
+                                                    jobTitle={jobTitle} confirmed={confirmed.has(r.message_id)}
+                                                    onConfirm={(yes) => setConfirmed((prev) => {
+                                                      const next = new Set(prev);
+                                                      if (yes) next.add(r.message_id); else next.delete(r.message_id);
+                                                      return next;
+                                                    })} />)}
                   </ul>
+                  {skipped.length > 0 && (
+                    <details open className="mt-4" data-testid="skipped-emails">
+                      <summary className="text-sm text-yellow-200 cursor-pointer">
+                        {skipped.length} e-mail(s) name this {poolOnly ? "title" : "job"} but cannot be imported
+                      </summary>
+                      <ul className="mt-2 space-y-2">
+                        {skipped.map((m) => (
+                          <li key={m.message_id} className="bg-[#132F4C] rounded-lg p-3 text-sm">
+                            <p className="text-white break-words">{m.subject || "(no subject)"}</p>
+                            <p className="text-xs text-[#546E7A]">{formatDate(m.received_at)}{m.sender_domain ? ` · from …@${m.sender_domain}` : ""}</p>
+                            <p className="text-xs text-yellow-200 mt-1">{m.detail}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </section>
               )}
             </>
@@ -417,10 +532,14 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
 
         {!run && search && (
           <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-[#2A3F5E]">
-            <p className="text-xs text-[#546E7A]">The sender is kept as the e-mail&apos;s source; the candidate is identified from the CV itself.</p>
+            <p className="text-xs text-[#546E7A]">
+              {needsConfirmation
+                ? <span className="text-yellow-200">{needsConfirmation} selected e-mail(s) also name another open job – confirm the job on each before importing.</span>
+                : "The sender is kept as the e-mail's source; the candidate is identified from the CV itself."}
+            </p>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button onClick={startImport} disabled={!selectedCount} isLoading={busy === "import"}>
+              <Button onClick={startImport} disabled={!selectedCount || needsConfirmation > 0} isLoading={busy === "import"}>
                 <Paperclip size={16} className="mr-2" /> Import {selectedCount} CV{selectedCount === 1 ? "" : "s"}
               </Button>
             </div>
@@ -431,10 +550,35 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
   );
 }
 
-function ResultCard({ result, selected, onToggle, selectable }: {
+function SearchSummary({ summary, poolOnly }: { summary: NonNullable<GmailSearchResponse["summary"]>; poolOnly: boolean }) {
+  const parts = [
+    `${summary.listed} e-mail(s) checked`,
+    `${summary.subject_matched} name this ${poolOnly ? "title" : "job"}`,
+    summary.importable ? `${summary.importable} with a CV to import` : null,
+    summary.already_imported ? `${summary.already_imported} already imported` : null,
+    summary.no_eligible_cv ? `${summary.no_eligible_cv} without a PDF/DOCX file` : null,
+    summary.own_mail ? `${summary.own_mail} our own mail (not offered)` : null,
+    summary.outside_period ? `${summary.outside_period} outside the period` : null,
+    summary.not_matching ? `${summary.not_matching} about other things (not shown)` : null,
+  ].filter(Boolean);
+  return (
+    <div className="mb-3" data-testid="search-summary">
+      <p className="text-xs text-[#B0BEC5]">{parts.join(" · ")}</p>
+      {summary.empty_text && (
+        <p className={cn("mt-2 rounded-lg border p-3 text-sm",
+          summary.empty_reason === "all_imported" ? "border-[#00C853]/40 bg-[#00C853]/10 text-[#B9F6CA]"
+            : "border-yellow-500/40 bg-yellow-500/10 text-yellow-200")}>{summary.empty_text}</p>
+      )}
+    </div>
+  );
+}
+
+function ResultCard({ result, selected, onToggle, selectable, jobTitle, confirmed, onConfirm }: {
   result: GmailSearchResultItem; selected?: Set<string>; onToggle: (partId: string) => void;
-  selectable: (a: GmailAttachmentPreview) => boolean;
+  selectable: (a: GmailAttachmentPreview) => boolean; jobTitle?: string; confirmed: boolean;
+  onConfirm: (yes: boolean) => void;
 }) {
+  const otherJobs = result.other_jobs || [];
   const match = MATCH[result.match.level] || MATCH.weak;
   return (
     <li className="bg-[#132F4C] rounded-lg p-3">
@@ -454,6 +598,15 @@ function ResultCard({ result, selected, onToggle, selectable }: {
         <span className={cn("px-2 py-0.5 rounded-full text-xs whitespace-nowrap", match.className)} title={result.match.explanation}>{match.label}</span>
       </div>
       <p className="text-xs text-[#546E7A] mt-1">{result.match.explanation}</p>
+      {otherJobs.length > 0 && (
+        <div className="mt-2 rounded border border-yellow-500/40 bg-yellow-500/10 p-2 text-xs text-yellow-200">
+          <p className="flex items-center gap-1"><AlertTriangle size={12} /> Also names another open job: {otherJobs.map((j) => j.title).join(", ")}.</p>
+          <label className="flex items-center gap-2 mt-1">
+            <input type="checkbox" checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />
+            This is an application for {jobTitle || "this job"}
+          </label>
+        </div>
+      )}
       {result.text && (
         <details className="mt-2">
           <summary className="text-xs text-[#B0BEC5] cursor-pointer">E-mail text</summary>

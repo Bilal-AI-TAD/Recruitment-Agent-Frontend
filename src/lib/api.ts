@@ -170,12 +170,15 @@ export const gmailAPI = {
   setShares: (connectionId: string, userIds: string[]) =>
     api.put(`/integrations/gmail/connections/${connectionId}/shares`, { user_ids: userIds }),
   variants: (jobId: string) => api.get(`/integrations/gmail/jobs/${jobId}/variants`),
-  regenerateVariants: (jobId: string) => api.post(`/integrations/gmail/jobs/${jobId}/variants/regenerate`),
+  regenerateVariants: (jobId: string, useAi = false) =>
+    api.post(`/integrations/gmail/jobs/${jobId}/variants/regenerate`, null, { params: useAi ? { use_ai: true } : {} }),
+  previewVariants: (jobId: string, variants: string[], subjects: string[]) =>
+    api.post(`/integrations/gmail/jobs/${jobId}/variants/preview`, { variants, subjects }),
   saveVariants: (jobId: string, variants: string[]) => api.put(`/integrations/gmail/jobs/${jobId}/variants`, { variants }),
   search: (data: { connection_id: string; job_id?: string | null; variants: string[]; date_from?: string; date_to?: string;
                    mode?: "narrow" | "broad"; confirm_broad?: boolean }) => api.post("/integrations/gmail/searches", data),
   more: (searchId: string) => api.post(`/integrations/gmail/searches/${searchId}/more`),
-  startImport: (data: { search_id: string; selections: { message_id: string; part_ids: string[] }[];
+  startImport: (data: { search_id: string; selections: { message_id: string; part_ids: string[]; confirm_job?: boolean }[];
                         client_request_id: string }) => api.post("/integrations/gmail/imports", data),
   imports: (jobId?: string | null) => api.get("/integrations/gmail/imports", { params: jobId ? { job_id: jobId } : {} }),
   run: (runId: string) => api.get(`/integrations/gmail/imports/${runId}`),
