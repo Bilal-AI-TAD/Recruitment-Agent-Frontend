@@ -108,8 +108,14 @@ export default function OutboxPage() {
                   {m.can_approve && (
                     <Button size="sm" isLoading={busy === `a-${m.outbox_id}`}
                       onClick={() => act(`a-${m.outbox_id}`, () => mailAPI.approve(m.outbox_id, m.content_hash), "Approved")}>
-                      <ShieldCheck size={14} className="mr-1" /> Approve and send
+                      <ShieldCheck size={14} className="mr-1" /> Approve this exact message
                     </Button>
+                  )}
+                  {m.can_edit && m.candidate_id && (
+                    <Link href={`/dashboard/candidates/${m.candidate_id}`}
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm border border-[#2A3F5E] text-[#E0E0E0] hover:text-white">
+                      Edit on the candidate page
+                    </Link>
                   )}
                   {m.can_cancel && (
                     <Button size="sm" variant="ghost" isLoading={busy === `c-${m.outbox_id}`}

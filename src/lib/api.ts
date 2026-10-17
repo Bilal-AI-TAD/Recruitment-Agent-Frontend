@@ -196,14 +196,16 @@ export const outlookAPI = {
 export const mailAPI = {
   outbox: (status?: string) => api.get("/mail/outbox", { params: status ? { status } : {} }),
   message: (outboxId: string) => api.get(`/mail/outbox/${outboxId}`),
-  edit: (outboxId: string, subject: string, body: string) => api.put(`/mail/outbox/${outboxId}`, { subject, body }),
+  edit: (outboxId: string, subject: string, body: string, recipient?: string) =>
+    api.put(`/mail/outbox/${outboxId}`, { subject, body, ...(recipient ? { recipient } : {}) }),
   approve: (outboxId: string, contentHash: string) =>
     api.post(`/mail/outbox/${outboxId}/approve`, { content_hash: contentHash }),
   cancel: (outboxId: string) => api.post(`/mail/outbox/${outboxId}/cancel`),
   resolve: (outboxId: string, outcome: "sent" | "not_sent") => api.post(`/mail/outbox/${outboxId}/resolve`, { outcome }),
   thread: (applicationId: string) => api.get(`/candidates/${applicationId}/messages`),
   templates: (applicationId: string) => api.get(`/candidates/${applicationId}/messages/templates`),
-  compose: (applicationId: string, data: { template: string; subject: string; body: string; client_request_id: string }) =>
+  compose: (applicationId: string, data: { template: string; subject: string; body: string; client_request_id: string;
+                                           recipient?: string }) =>
     api.post(`/candidates/${applicationId}/messages`, data),
   optOut: (applicationId: string) => api.post(`/candidates/${applicationId}/opt-out`),
   suppressions: () => api.get("/mail/suppressions"),
