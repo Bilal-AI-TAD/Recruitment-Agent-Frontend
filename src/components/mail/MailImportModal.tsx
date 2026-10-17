@@ -17,6 +17,13 @@ import {
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/components/pool/PoolBits";
 
+const AUTO_CONTINUE_ROUNDS = 10;   // a search continues by itself this many times before asking for "Load more"
+
+const mergeById = <T extends { message_id: string }>(prev: T[], next: T[]) => {
+  const seen = new Set(prev.map((r) => r.message_id));
+  return [...prev, ...next.filter((r) => !seen.has(r.message_id))];
+};
+
 const inputClass = "bg-[#132F4C] border border-[#2A3F5E] rounded-lg px-3 py-2 text-white text-sm placeholder-[#546E7A] focus:outline-none focus:border-[#00C853]";
 const POLL_MS = 2500;
 
@@ -89,6 +96,7 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
   const [busy, setBusy] = useState<string | null>(null);
   const [run, setRun] = useState<MailImportRun | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);   // e-mails checked while a search continues
   const [skipped, setSkipped] = useState<MailSkippedMessage[]>([]);
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ from: string; value: string } | null>(null);
@@ -210,12 +218,25 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
         connection_id: connectionId, job_id: jobId || null, variants: list, mode, confirm_broad: mode === "broad",
         ...(period === "range" ? { date_from: dateFrom, date_to: dateTo } : {}),
       });
-      const data = res.data as MailSearchResponse;
-      setSearch(data);
-      setResults(data.results);
-      setSkipped(data.skipped || []);
+      let data = res.data as MailSearchResponse;
+      let found = data.results, skippedSoFar = data.skipped || [];
       setSelected({});
       setConfirmed(new Set());
+      // Each server step stops after a few seconds to stay responsive; continue until the period is fully checked,
+      // so an unfinished search is never shown as "nothing found".
+      for (let round = 0; data.incomplete && data.can_load_more && round < AUTO_CONTINUE_ROUNDS; round++) {
+        setProgress(data.totals?.listed ?? 0);
+        try {
+          data = (await mailImportAPI.more(data.search_id)).data as MailSearchResponse;
+        } catch {
+          break;                                   // keep what was found; the banner offers "Load more"
+        }
+        found = mergeById(found, data.results);
+        skippedSoFar = mergeById(skippedSoFar, data.skipped || []);
+      }
+      setSearch(data);
+      setResults(found);
+      setSkipped(skippedSoFar);
     } catch (err) {
       // A failed search is never shown as "no results": nothing was checked.
       setSearch(null);
@@ -224,6 +245,7 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
       setSearchError(getErrorMessage(err, "The mailbox could not be searched"));
     } finally {
       setBusy(null);
+      setProgress(null);
     }
   };
 
@@ -234,14 +256,8 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
       const res = await mailImportAPI.more(search.search_id);
       const data = res.data as MailSearchResponse;
       setSearch(data);
-      setResults((prev) => {
-        const seen = new Set(prev.map((r) => r.message_id));
-        return [...prev, ...data.results.filter((r) => !seen.has(r.message_id))];
-      });
-      setSkipped((prev) => {
-        const seen = new Set(prev.map((r) => r.message_id));
-        return [...prev, ...(data.skipped || []).filter((r) => !seen.has(r.message_id))];
-      });
+      setResults((prev) => mergeById(prev, data.results));
+      setSkipped((prev) => mergeById(prev, data.skipped || []));
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not load more results – the e-mails checked so far are still shown"));
     } finally {
@@ -451,7 +467,12 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
                     )}
                   </>
                 )}
-                <div className="flex justify-end mt-3">
+                <div className="flex items-center justify-end gap-3 mt-3">
+                  {progress !== null && (
+                    <span className="text-xs text-[#B0BEC5]" data-testid="search-progress">
+                      <Loader2 size={12} className="inline animate-spin mr-1" /> Searching… {progress} e-mail(s) checked
+                    </span>
+                  )}
                   <Button onClick={() => runSearch("narrow")} isLoading={busy === "narrow"}
                     disabled={!connectionId || !list.length || (!variants && !poolOnly)}>
                     <Search size={16} className="mr-2" /> Search mailbox
