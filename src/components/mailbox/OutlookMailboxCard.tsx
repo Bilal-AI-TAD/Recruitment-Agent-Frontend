@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { AlertTriangle, Inbox, Link2, MailCheck, RefreshCw, Send, Unplug } from "lucide-react";
-import { gmailAPI, outlookAPI } from "@/lib/api";
+import { mailImportAPI, outlookAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
-import { GmailConnection, GmailConnectionsResponse, OutlookStatus } from "@/types";
+import { MailConnection, MailConnectionsResponse, OutlookStatus } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/components/pool/PoolBits";
@@ -34,7 +34,7 @@ const ERROR_CODES: Record<string, string> = {
   refresh_unavailable: "Microsoft could not be reached when refreshing access",
 };
 
-const STATUS: Record<GmailConnection["status"], { label: string; className: string }> = {
+const STATUS: Record<MailConnection["status"], { label: string; className: string }> = {
   active: { label: "Connected", className: "bg-[#00C853]/15 text-[#00C853]" },
   needs_reconnect: { label: "Reconnect needed", className: "bg-yellow-500/15 text-yellow-300" },
   disconnected: { label: "Disconnected", className: "bg-[#546E7A]/20 text-[#B0BEC5]" },
@@ -50,15 +50,15 @@ function newNonce(): string {
 export function OutlookMailboxCard() {
   const router = useRouter();
   const [status, setStatus] = useState<OutlookStatus | null>(null);
-  const [connections, setConnections] = useState<GmailConnection[]>([]);
+  const [connections, setConnections] = useState<MailConnection[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const handledReturn = useRef(false);
 
   const load = useCallback(async () => {
     try {
-      const [s, c] = await Promise.all([outlookAPI.status(), gmailAPI.connections()]);
+      const [s, c] = await Promise.all([outlookAPI.status(), mailImportAPI.connections()]);
       setStatus(s.data as OutlookStatus);
-      setConnections((c.data as GmailConnectionsResponse).connections.filter((x) => x.provider === "outlook"));
+      setConnections((c.data as MailConnectionsResponse).connections.filter((x) => x.provider === "outlook"));
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not load the Outlook mailbox"));
     }
@@ -90,7 +90,7 @@ export function OutlookMailboxCard() {
     }
     setBusy("complete");
     outlookAPI.complete(flow, nonce)
-      .then((res) => toast.success(`Connected ${(res.data as GmailConnection).mailbox_email}`))
+      .then((res) => toast.success(`Connected ${(res.data as MailConnection).mailbox_email}`))
       .catch((err) => toast.error(getErrorMessage(err, "The Outlook connection could not be completed")))
       .finally(() => { setBusy(null); load(); });
   }, [load, router]);
@@ -101,7 +101,7 @@ export function OutlookMailboxCard() {
     try {
       if (status.auth_mode === "app_only") {
         const res = await outlookAPI.connectApp();
-        toast.success(`Connected ${(res.data as GmailConnection).mailbox_email} (app access, limited to this mailbox)`);
+        toast.success(`Connected ${(res.data as MailConnection).mailbox_email} (app access, limited to this mailbox)`);
         setBusy(null);
         load();
         return;
@@ -177,7 +177,7 @@ export function OutlookMailboxCard() {
               <div className="flex flex-wrap gap-2">
                 {c.status !== "disconnected" && (
                   <Button size="sm" variant="ghost" isLoading={busy === `check-${c.connection_id}`}
-                    onClick={() => run(`check-${c.connection_id}`, () => gmailAPI.check(c.connection_id), "Checked")}>
+                    onClick={() => run(`check-${c.connection_id}`, () => mailImportAPI.check(c.connection_id), "Checked")}>
                     <RefreshCw size={14} className="mr-1" /> Check
                   </Button>
                 )}
@@ -189,7 +189,7 @@ export function OutlookMailboxCard() {
                 {c.is_owner && c.status !== "disconnected" && (
                   <Button size="sm" variant="danger" isLoading={busy === `disc-${c.connection_id}`}
                     onClick={() => window.confirm(`Disconnect ${c.mailbox_email}? The stored Microsoft tokens are deleted. Messages waiting to be sent stay in the outbox until a mailbox is connected again. To remove the app's consent entirely, an administrator does that in Microsoft Entra ID.`) &&
-                      run(`disc-${c.connection_id}`, () => gmailAPI.disconnect(c.connection_id), "Disconnected; tokens deleted")}>
+                      run(`disc-${c.connection_id}`, () => mailImportAPI.disconnect(c.connection_id), "Disconnected; tokens deleted")}>
                     <Unplug size={14} className="mr-1" /> Disconnect
                   </Button>
                 )}

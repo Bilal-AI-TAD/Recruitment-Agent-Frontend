@@ -2,19 +2,19 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Mail } from "lucide-react";
-import { gmailAPI } from "@/lib/api";
-import { GmailImportRun } from "@/types";
+import { mailImportAPI } from "@/lib/api";
+import { MailImportRun } from "@/types";
 import { formatDate } from "@/components/pool/PoolBits";
-import { RUN_STATUS } from "@/components/gmail/GmailImportModal";
+import { RUN_STATUS } from "@/components/mail/MailImportModal";
 
-/** Recent Gmail imports for a job (only runs the viewer may see). */
-export function GmailImportHistory({ jobId, refreshKey, onOpen }: {
+/** Recent mailbox imports for a job (only runs the viewer may see). */
+export function MailImportHistory({ jobId, refreshKey, onOpen }: {
   jobId: string; refreshKey: number; onOpen: (runId: string) => void;
 }) {
-  const [runs, setRuns] = useState<GmailImportRun[]>([]);
+  const [runs, setRuns] = useState<MailImportRun[]>([]);
 
   const load = useCallback(() => {
-    gmailAPI.imports(jobId).then((res) => setRuns((res.data as { runs: GmailImportRun[] }).runs)).catch(() => setRuns([]));
+    mailImportAPI.imports(jobId).then((res) => setRuns((res.data as { runs: MailImportRun[] }).runs)).catch(() => setRuns([]));
   }, [jobId]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
@@ -27,7 +27,7 @@ export function GmailImportHistory({ jobId, refreshKey, onOpen }: {
   if (!runs.length) return null;
   return (
     <div className="mt-4 border-t border-[#2A3F5E] pt-3">
-      <h3 className="text-sm text-[#B0BEC5] mb-2 flex items-center gap-2"><Mail size={14} /> Gmail imports</h3>
+      <h3 className="text-sm text-[#B0BEC5] mb-2 flex items-center gap-2"><Mail size={14} /> Mailbox imports</h3>
       <ul className="space-y-1">
         {runs.slice(0, 5).map((r) => (
           <li key={r.run_id}>

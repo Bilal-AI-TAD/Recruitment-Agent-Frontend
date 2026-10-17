@@ -158,32 +158,29 @@ export const poolAPI = {
     api.post(`/jobs/${jobId}/applications`, { pool_candidate_ids: poolCandidateIds }),
 };
 
-/** Read-only Gmail connection and historical CV import (see backend docs/gmail_integration.md). */
-export const gmailAPI = {
-  connections: () => api.get("/integrations/gmail/connections"),
-  connect: (nonce: string, connectionId?: string) =>
-    api.post("/integrations/gmail/connect", { nonce, ...(connectionId ? { connection_id: connectionId } : {}) }),
-  complete: (flowId: string, nonce: string) => api.post("/integrations/gmail/complete", { flow_id: flowId, nonce }),
-  check: (connectionId: string) => api.post(`/integrations/gmail/connections/${connectionId}/check`),
-  disconnect: (connectionId: string) => api.post(`/integrations/gmail/connections/${connectionId}/disconnect`),
-  shareableUsers: () => api.get("/integrations/gmail/shareable-users"),
+/** Mailbox connections (the company Outlook mailbox), subject phrases and CV import runs (backend docs/outlook.md). */
+export const mailImportAPI = {
+  connections: () => api.get("/integrations/mail/connections"),
+  check: (connectionId: string) => api.post(`/integrations/mail/connections/${connectionId}/check`),
+  disconnect: (connectionId: string) => api.post(`/integrations/mail/connections/${connectionId}/disconnect`),
+  shareableUsers: () => api.get("/integrations/mail/shareable-users"),
   setShares: (connectionId: string, userIds: string[]) =>
-    api.put(`/integrations/gmail/connections/${connectionId}/shares`, { user_ids: userIds }),
-  variants: (jobId: string) => api.get(`/integrations/gmail/jobs/${jobId}/variants`),
+    api.put(`/integrations/mail/connections/${connectionId}/shares`, { user_ids: userIds }),
+  variants: (jobId: string) => api.get(`/integrations/mail/jobs/${jobId}/variants`),
   regenerateVariants: (jobId: string, useAi = false) =>
-    api.post(`/integrations/gmail/jobs/${jobId}/variants/regenerate`, null, { params: useAi ? { use_ai: true } : {} }),
+    api.post(`/integrations/mail/jobs/${jobId}/variants/regenerate`, null, { params: useAi ? { use_ai: true } : {} }),
   previewVariants: (jobId: string, variants: string[], subjects: string[]) =>
-    api.post(`/integrations/gmail/jobs/${jobId}/variants/preview`, { variants, subjects }),
-  saveVariants: (jobId: string, variants: string[]) => api.put(`/integrations/gmail/jobs/${jobId}/variants`, { variants }),
+    api.post(`/integrations/mail/jobs/${jobId}/variants/preview`, { variants, subjects }),
+  saveVariants: (jobId: string, variants: string[]) => api.put(`/integrations/mail/jobs/${jobId}/variants`, { variants }),
   search: (data: { connection_id: string; job_id?: string | null; variants: string[]; date_from?: string; date_to?: string;
-                   mode?: "narrow" | "broad"; confirm_broad?: boolean }) => api.post("/integrations/gmail/searches", data),
-  more: (searchId: string) => api.post(`/integrations/gmail/searches/${searchId}/more`),
+                   mode?: "narrow" | "broad"; confirm_broad?: boolean }) => api.post("/integrations/mail/searches", data),
+  more: (searchId: string) => api.post(`/integrations/mail/searches/${searchId}/more`),
   startImport: (data: { search_id: string; selections: { message_id: string; part_ids: string[]; confirm_job?: boolean }[];
-                        client_request_id: string }) => api.post("/integrations/gmail/imports", data),
-  imports: (jobId?: string | null) => api.get("/integrations/gmail/imports", { params: jobId ? { job_id: jobId } : {} }),
-  run: (runId: string) => api.get(`/integrations/gmail/imports/${runId}`),
-  cancel: (runId: string) => api.post(`/integrations/gmail/imports/${runId}/cancel`),
-  retry: (runId: string) => api.post(`/integrations/gmail/imports/${runId}/retry`),
+                        client_request_id: string }) => api.post("/integrations/mail/imports", data),
+  imports: (jobId?: string | null) => api.get("/integrations/mail/imports", { params: jobId ? { job_id: jobId } : {} }),
+  run: (runId: string) => api.get(`/integrations/mail/imports/${runId}`),
+  cancel: (runId: string) => api.post(`/integrations/mail/imports/${runId}/cancel`),
+  retry: (runId: string) => api.post(`/integrations/mail/imports/${runId}/retry`),
 };
 
 /** The company Outlook mailbox (Microsoft Graph): connection, reply tracking. See backend docs/outlook.md. */

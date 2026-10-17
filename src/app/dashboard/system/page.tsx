@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { analyticsAPI, UsageRange } from "@/lib/api";
 import { Toaster } from "react-hot-toast";
-import { GmailConnectionsCard } from "@/components/gmail/GmailConnectionsCard";
 import { OutlookMailboxCard } from "@/components/mailbox/OutlookMailboxCard";
 import { AiReadiness, COST_LABEL, COST_NOTE, CostTotals, formatUsd } from "@/lib/cost";
 
@@ -126,7 +125,6 @@ export default function SystemPage() {
       </motion.div>
 
       <OutlookMailboxCard />
-      <GmailConnectionsCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {mockServices.map((service, index) => (

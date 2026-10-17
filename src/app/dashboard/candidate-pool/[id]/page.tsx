@@ -399,7 +399,7 @@ export default function PoolCandidatePage() {
                       {a.shortlist && <span className="inline-flex items-center gap-1 text-yellow-300"><Star size={12} /> Shortlisted</span>}
                       {!a.job_open && <span>Job closed</span>}
                       <span>{a.added_via === "pool" ? "Added from pool" : a.added_via === "headhunting" ? "Added from headhunting"
-                        : a.added_via === "gmail" ? "From Gmail" : "Uploaded"} {formatDate(a.added_at)}</span>
+                        : a.added_via === "outlook" ? "From Outlook" : a.added_via === "gmail" ? "From Gmail" : "Uploaded"} {formatDate(a.added_at)}</span>
                       {a.assessment?.cv_version && <span>· CV v{a.assessment.cv_version}</span>}
                     </div>
                     {a.assessment?.stale_reasons?.length ? (

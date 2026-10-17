@@ -8,11 +8,11 @@ import {
   AlertTriangle, CheckCircle2, Forward, Loader2, Mail, Paperclip, Plus, RefreshCw, RotateCcw, Search, Sparkles, X,
   XCircle,
 } from "lucide-react";
-import { gmailAPI } from "@/lib/api";
+import { mailImportAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import {
-  GmailAttachmentPreview, GmailConnection, GmailConnectionsResponse, GmailImportRun, GmailItemStatus,
-  GmailSearchResponse, GmailSearchResultItem, GmailVariants, MailPhrasePreview, MailSkippedMessage,
+  MailAttachmentPreview, MailConnection, MailConnectionsResponse, MailImportRun, MailItemStatus,
+  MailSearchResponse, MailSearchResultItem, MailVariants, MailPhrasePreview, MailSkippedMessage,
 } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/components/pool/PoolBits";
@@ -26,14 +26,14 @@ const MATCH: Record<string, { label: string; className: string }> = {
   weak: { label: "Weak – broader search", className: "bg-orange-500/15 text-orange-300" },
 };
 
-const ATTACHMENT_STATUS: Record<GmailAttachmentPreview["import_status"], { label: string; className: string }> = {
+const ATTACHMENT_STATUS: Record<MailAttachmentPreview["import_status"], { label: string; className: string }> = {
   new: { label: "New", className: "bg-blue-500/15 text-blue-300" },
   in_pool: { label: "In pool – profile reused", className: "bg-[#00C853]/15 text-[#00C853]" },
   in_job: { label: "Already in this job", className: "bg-[#546E7A]/20 text-[#B0BEC5]" },
   unsupported: { label: "Not importable", className: "bg-[#FF5252]/15 text-[#FF8A80]" },
 };
 
-export const ITEM_STATUS: Record<GmailItemStatus, { label: string; className: string }> = {
+export const ITEM_STATUS: Record<MailItemStatus, { label: string; className: string }> = {
   pending: { label: "Waiting", className: "text-[#B0BEC5]" },
   processing: { label: "Importing…", className: "text-blue-300" },
   imported: { label: "Imported", className: "text-[#00C853]" },
@@ -43,7 +43,7 @@ export const ITEM_STATUS: Record<GmailItemStatus, { label: string; className: st
   cancelled: { label: "Cancelled", className: "text-[#546E7A]" },
 };
 
-export const RUN_STATUS: Record<GmailImportRun["status"], string> = {
+export const RUN_STATUS: Record<MailImportRun["status"], string> = {
   queued: "Waiting to start",
   running: "Importing",
   completed: "Finished",
@@ -64,30 +64,30 @@ function requestId() {
 }
 
 /**
- * Historical mailbox search (Gmail or the company Outlook mailbox): choose a mailbox and period, review the
+ * Mailbox CV search (the company Outlook mailbox): choose the mailbox and period, review the job's
  * title/subject variations, preview matching application e-mails and import the selected CV attachments.
  * With a job, imported CVs become applications for it; without one (Candidate Pool) they are only added to the
  * pool - associating them with a job is a separate, explicit step there.
  * Nothing is imported until HR selects attachments; the e-mail text is shown as plain text.
  */
-export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImported }: {
+export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImported }: {
   jobId?: string | null; jobTitle?: string; initialRunId?: string | null; onClose: () => void; onImported: () => void;
 }) {
   const poolOnly = !jobId;
-  const [connections, setConnections] = useState<GmailConnection[] | null>(null);
+  const [connections, setConnections] = useState<MailConnection[] | null>(null);
   const [connectionId, setConnectionId] = useState("");
   const [period, setPeriod] = useState<"all" | "range">("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [variants, setVariants] = useState<GmailVariants | null>(null);
+  const [variants, setVariants] = useState<MailVariants | null>(null);
   const [list, setList] = useState<string[]>([]);
   const [edited, setEdited] = useState(false);
   const [newVariant, setNewVariant] = useState("");
-  const [search, setSearch] = useState<GmailSearchResponse | null>(null);
-  const [results, setResults] = useState<GmailSearchResultItem[]>([]);
+  const [search, setSearch] = useState<MailSearchResponse | null>(null);
+  const [results, setResults] = useState<MailSearchResultItem[]>([]);
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [run, setRun] = useState<GmailImportRun | null>(null);
+  const [run, setRun] = useState<MailImportRun | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [skipped, setSkipped] = useState<MailSkippedMessage[]>([]);
   const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
@@ -98,15 +98,15 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
   const notified = useRef<string | null>(null);
 
   useEffect(() => {
-    gmailAPI.connections().then((res) => {
-      const data = res.data as GmailConnectionsResponse;
+    mailImportAPI.connections().then((res) => {
+      const data = res.data as MailConnectionsResponse;
       const usable = data.connections.filter((c) => c.status === "active");
       setConnections(usable);
       if (usable.length) setConnectionId(usable[0].connection_id);
     }).catch((err) => { toast.error(getErrorMessage(err, "Could not load mailboxes")); setConnections([]); });
     if (!jobId) return;                       // pool search: HR types the job titles to look for
-    gmailAPI.variants(jobId).then((res) => {
-      const v = res.data as GmailVariants;
+    mailImportAPI.variants(jobId).then((res) => {
+      const v = res.data as MailVariants;
       setVariants(v);
       setList(v.variants);
     }).catch((err) => toast.error(getErrorMessage(err, "Could not prepare title variations")));
@@ -114,8 +114,8 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
 
   const loadRun = useCallback(async (runId: string) => {
     try {
-      const res = await gmailAPI.run(runId);
-      setRun(res.data as GmailImportRun);
+      const res = await mailImportAPI.run(runId);
+      setRun(res.data as MailImportRun);
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not load the import"));
     }
@@ -140,8 +140,8 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       + "requirements are sent (never e-mails), and it counts towards the AI budget.")) return;
     setBusy(useAi ? "ai" : "variants");
     try {
-      const res = await gmailAPI.regenerateVariants(jobId, useAi);
-      const v = res.data as GmailVariants;
+      const res = await mailImportAPI.regenerateVariants(jobId, useAi);
+      const v = res.data as MailVariants;
       setVariants(v);
       setList(v.variants);
       setEdited(false);
@@ -171,7 +171,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     if (!subjects.length || !list.length) return;
     setBusy("preview");
     try {
-      const res = await gmailAPI.previewVariants(jobId, list, subjects);
+      const res = await mailImportAPI.previewVariants(jobId, list, subjects);
       setPreview((res.data as { results: MailPhrasePreview[] }).results);
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not test the phrases"));
@@ -203,14 +203,14 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     setSearchError(null);
     try {
       if (edited && jobId) {
-        await gmailAPI.saveVariants(jobId, list);
+        await mailImportAPI.saveVariants(jobId, list);
         setEdited(false);
       }
-      const res = await gmailAPI.search({
+      const res = await mailImportAPI.search({
         connection_id: connectionId, job_id: jobId || null, variants: list, mode, confirm_broad: mode === "broad",
         ...(period === "range" ? { date_from: dateFrom, date_to: dateTo } : {}),
       });
-      const data = res.data as GmailSearchResponse;
+      const data = res.data as MailSearchResponse;
       setSearch(data);
       setResults(data.results);
       setSkipped(data.skipped || []);
@@ -231,8 +231,8 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     if (!search) return;
     setBusy("more");
     try {
-      const res = await gmailAPI.more(search.search_id);
-      const data = res.data as GmailSearchResponse;
+      const res = await mailImportAPI.more(search.search_id);
+      const data = res.data as MailSearchResponse;
       setSearch(data);
       setResults((prev) => {
         const seen = new Set(prev.map((r) => r.message_id));
@@ -250,7 +250,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
   };
 
   const doneStatus = poolOnly ? "in_pool" as const : "in_job" as const;
-  const selectable = (a: GmailAttachmentPreview) => a.supported && a.import_status !== doneStatus;
+  const selectable = (a: MailAttachmentPreview) => a.supported && a.import_status !== doneStatus;
   const toggle = (messageId: string, partId: string) => setSelected((prev) => {
     const next = { ...prev };
     const parts = new Set(next[messageId] || []);
@@ -278,10 +278,10 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
       const selections = Object.entries(selected).filter(([, parts]) => parts.size)
         .map(([message_id, parts]) => ({ message_id, part_ids: Array.from(parts),
                                           ...(confirmed.has(message_id) ? { confirm_job: true } : {}) }));
-      const res = await gmailAPI.startImport({ search_id: search.search_id, selections,
+      const res = await mailImportAPI.startImport({ search_id: search.search_id, selections,
                                                client_request_id: requestKey.current });
       requestKey.current = requestId();
-      setRun(res.data as GmailImportRun);
+      setRun(res.data as MailImportRun);
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not start the import"));
     } finally {
@@ -293,8 +293,8 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
     if (!run) return;
     setBusy(action);
     try {
-      const res = action === "cancel" ? await gmailAPI.cancel(run.run_id) : await gmailAPI.retry(run.run_id);
-      setRun(res.data as GmailImportRun);
+      const res = action === "cancel" ? await mailImportAPI.cancel(run.run_id) : await mailImportAPI.retry(run.run_id);
+      setRun(res.data as MailImportRun);
     } catch (err) {
       toast.error(getErrorMessage(err, action === "cancel" ? "Could not cancel" : "Could not retry"));
     } finally {
@@ -342,7 +342,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
                     <select className={cn(inputClass, "w-full")} value={connectionId} onChange={(e) => setConnectionId(e.target.value)}>
                       {connections.map((c) => (
                         <option key={c.connection_id} value={c.connection_id}>
-                          {c.provider === "outlook" ? "Outlook · " : "Gmail · "}{c.mailbox_email}
+                          Outlook · {c.mailbox_email}
                           {c.is_owner ? "" : ` (shared by ${c.owner_name || "a colleague"})`}
                         </option>
                       ))}
@@ -550,7 +550,7 @@ export function GmailImportModal({ jobId, jobTitle, initialRunId, onClose, onImp
   );
 }
 
-function SearchSummary({ summary, poolOnly }: { summary: NonNullable<GmailSearchResponse["summary"]>; poolOnly: boolean }) {
+function SearchSummary({ summary, poolOnly }: { summary: NonNullable<MailSearchResponse["summary"]>; poolOnly: boolean }) {
   const parts = [
     `${summary.listed} e-mail(s) checked`,
     `${summary.subject_matched} name this ${poolOnly ? "title" : "job"}`,
@@ -574,8 +574,8 @@ function SearchSummary({ summary, poolOnly }: { summary: NonNullable<GmailSearch
 }
 
 function ResultCard({ result, selected, onToggle, selectable, jobTitle, confirmed, onConfirm }: {
-  result: GmailSearchResultItem; selected?: Set<string>; onToggle: (partId: string) => void;
-  selectable: (a: GmailAttachmentPreview) => boolean; jobTitle?: string; confirmed: boolean;
+  result: MailSearchResultItem; selected?: Set<string>; onToggle: (partId: string) => void;
+  selectable: (a: MailAttachmentPreview) => boolean; jobTitle?: string; confirmed: boolean;
   onConfirm: (yes: boolean) => void;
 }) {
   const otherJobs = result.other_jobs || [];
@@ -637,7 +637,7 @@ function ResultCard({ result, selected, onToggle, selectable, jobTitle, confirme
 }
 
 function RunProgress({ run, busy, onCancel, onRetry, onBack, canSearchAgain, poolOnly }: {
-  run: GmailImportRun; busy: string | null; onCancel: () => void; onRetry: () => void; onBack: () => void;
+  run: MailImportRun; busy: string | null; onCancel: () => void; onRetry: () => void; onBack: () => void;
   canSearchAgain: boolean; poolOnly?: boolean;
 }) {
   const active = ["queued", "running"].includes(run.status);

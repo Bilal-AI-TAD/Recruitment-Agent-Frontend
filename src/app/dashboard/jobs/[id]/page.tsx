@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { CVImport } from "@/components/CVImport";
 import { JobModal } from "@/components/JobModal";
 import { PoolPickerModal } from "@/components/pool/PoolPickerModal";
-import { GmailImportModal } from "@/components/gmail/GmailImportModal";
-import { GmailImportHistory } from "@/components/gmail/GmailImportHistory";
+import { MailImportModal } from "@/components/mail/MailImportModal";
+import { MailImportHistory } from "@/components/mail/MailImportHistory";
 import { HeadhuntingCard } from "@/components/headhunting/HeadhuntingCard";
 import { useAuth } from "@/context/AuthContext";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
@@ -32,16 +32,16 @@ export default function JobDetailPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [poolOpen, setPoolOpen] = useState(false);
-  const [gmailEnabled, setGmailEnabled] = useState(false);
-  const [gmailOpen, setGmailOpen] = useState(false);
-  const [gmailRunId, setGmailRunId] = useState<string | null>(null);
-  const [gmailRefresh, setGmailRefresh] = useState(0);
+  const [mailboxEnabled, setMailboxEnabled] = useState(false);
+  const [mailImportOpen, setMailImportOpen] = useState(false);
+  const [mailRunId, setMailRunId] = useState<string | null>(null);
+  const [mailRefresh, setMailRefresh] = useState(0);
   const { user } = useAuth();
-  const canImportGmail = (user?.permissions || []).includes("gmail.import");
+  const canImportMail = (user?.permissions || []).includes("mail.import");
 
   useEffect(() => {
-    configAPI.get().then((r) => setGmailEnabled(Boolean(r.data?.features?.gmail || r.data?.features?.outlook)))
-      .catch(() => setGmailEnabled(false));
+    configAPI.get().then((r) => setMailboxEnabled(Boolean(r.data?.features?.outlook)))
+      .catch(() => setMailboxEnabled(false));
   }, []);
 
   const loadJob = useCallback(async () => {
@@ -142,10 +142,10 @@ export default function JobDetailPage() {
       {poolOpen && job && (
         <PoolPickerModal jobId={jobId} jobTitle={job.title} onClose={() => setPoolOpen(false)} onAdded={loadRanking} />
       )}
-      {gmailOpen && job && (
-        <GmailImportModal jobId={jobId} jobTitle={job.title} initialRunId={gmailRunId}
-          onClose={() => { setGmailOpen(false); setGmailRunId(null); setGmailRefresh((n) => n + 1); }}
-          onImported={() => { loadRanking(); loadJob(); setGmailRefresh((n) => n + 1); }} />
+      {mailImportOpen && job && (
+        <MailImportModal jobId={jobId} jobTitle={job.title} initialRunId={mailRunId}
+          onClose={() => { setMailImportOpen(false); setMailRunId(null); setMailRefresh((n) => n + 1); }}
+          onImported={() => { loadRanking(); loadJob(); setMailRefresh((n) => n + 1); }} />
       )}
       <JobModal
         isOpen={editOpen}
@@ -203,8 +203,8 @@ export default function JobDetailPage() {
         <Card className="lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h2 className="text-lg font-semibold text-white">Import CVs</h2>
-            {gmailEnabled && canImportGmail && (
-              <Button variant="outline" size="sm" disabled={!isOpen} onClick={() => { setGmailRunId(null); setGmailOpen(true); }}
+            {mailboxEnabled && canImportMail && (
+              <Button variant="outline" size="sm" disabled={!isOpen} onClick={() => { setMailRunId(null); setMailImportOpen(true); }}
                 title={isOpen ? "Search a connected mailbox for past applications to this job" : "This job is closed. Reopen it to import more CVs."}>
                 <Mail size={16} className="mr-2" /> Import from mailbox
               </Button>
@@ -216,9 +216,9 @@ export default function JobDetailPage() {
             disabledReason="This job is closed. Reopen it to import more CVs."
             onImported={() => { loadRanking(); loadJob(); }}
           />
-          {canImportGmail && (
-            <GmailImportHistory jobId={jobId} refreshKey={gmailRefresh}
-              onOpen={(runId) => { setGmailRunId(runId); setGmailOpen(true); }} />
+          {canImportMail && (
+            <MailImportHistory jobId={jobId} refreshKey={mailRefresh}
+              onOpen={(runId) => { setMailRunId(runId); setMailImportOpen(true); }} />
           )}
         </Card>
       </div>
@@ -308,10 +308,10 @@ export default function JobDetailPage() {
                         {candidate.added_via === "headhunting" && (
                           <span className="px-2 py-0.5 rounded-full text-xs bg-[#00C853]/15 text-[#00C853]" data-testid="from-headhunting">From headhunting</span>
                         )}
-                        {candidate.added_via === "gmail" && (
+                        {(candidate.added_via === "gmail" || candidate.added_via === "outlook") && (
                           <span className="px-2 py-0.5 rounded-full text-xs bg-purple-500/15 text-purple-300"
                             title={candidate.gmail ? `E-mail "${candidate.gmail.subject || ""}" from ${candidate.gmail.sender_name || candidate.gmail.sender_email || "unknown sender"}${candidate.gmail.forwarded_from_email ? ` (forwarded from ${candidate.gmail.forwarded_from_email})` : ""}. The sender is not necessarily the candidate.` : undefined}>
-                            From Gmail
+                            {candidate.added_via === "outlook" ? "From Outlook" : "From Gmail"}
                           </span>
                         )}
                         {candidate.cv_version && <span className="text-xs text-[#546E7A]">CV v{candidate.cv_version}</span>}

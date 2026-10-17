@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { AlertTriangle, ChevronLeft, ChevronRight, Database, Filter, Info, Mail, Plus, Search, X } from "lucide-react";
 import { configAPI, poolAPI, PoolSearchParams } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { GmailImportModal } from "@/components/gmail/GmailImportModal";
+import { MailImportModal } from "@/components/mail/MailImportModal";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { PoolFacets, PoolListItem, PoolSearchResult } from "@/types";
 import { Card } from "@/components/ui/Card";
@@ -151,10 +151,10 @@ export default function CandidatePoolPage() {
   const [mailboxImport, setMailboxImport] = useState(false);
   const [mailboxEnabled, setMailboxEnabled] = useState(false);
   useEffect(() => {
-    configAPI.get().then((r) => setMailboxEnabled(Boolean(r.data?.features?.gmail || r.data?.features?.outlook)))
+    configAPI.get().then((r) => setMailboxEnabled(Boolean(r.data?.features?.outlook)))
       .catch(() => setMailboxEnabled(false));
   }, []);
-  const canImport = mailboxEnabled && (user?.permissions || []).includes("gmail.import");
+  const canImport = mailboxEnabled && (user?.permissions || []).includes("mail.import");
   const items = result?.items || [];
   const allOnPage = items.length > 0 && items.every((i) => selected.has(i.pool_candidate_id));
 
@@ -180,7 +180,7 @@ export default function CandidatePoolPage() {
         </div>
       </motion.div>
       {mailboxImport && (
-        <GmailImportModal onClose={() => setMailboxImport(false)} onImported={load} />
+        <MailImportModal onClose={() => setMailboxImport(false)} onImported={load} />
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">

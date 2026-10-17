@@ -213,7 +213,7 @@ export interface AppConfig {
     max_zip_uncompressed_mb: number;
     max_files_per_request: number;
   };
-  features: { visnext_sync: boolean; gmail?: boolean; gmail_setup_issue?: string | null };
+  features: { visnext_sync: boolean; outlook?: boolean; outlook_setup_issue?: string | null; mail_sending?: boolean };
 }
 
 export interface AssessmentCriterion {
@@ -272,7 +272,7 @@ interface CandidateCore {
   shortlist: boolean;
   created_at?: string | null;
   pool_candidate_id?: string | null;
-  added_via?: "upload" | "pool" | "manual" | "gmail" | "headhunting";
+  added_via?: "upload" | "pool" | "manual" | "gmail" | "outlook" | "headhunting";
   cv_version?: number | null;
   profile_version?: number | null;
 }
@@ -287,8 +287,9 @@ export interface RankedCandidate extends CandidateCore {
   stale_reasons: StaleReason[];
   extraction_review_flags?: string[];
   open_identity_reviews?: number;
-  /** Application e-mail for Gmail imports. The sender may be an agency or a colleague, not the candidate. */
-  gmail?: GmailEmailView | null;
+  /** Application e-mail of a mailbox import (Outlook, or Gmail before it was removed). The sender may be an agency or
+   * a colleague, not the candidate. (Key name kept from the Gmail integration.) */
+  gmail?: MailEmailView | null;
   profile: {
     current_title?: string | null;
     current_company?: string | null;
@@ -416,7 +417,7 @@ export interface PoolDocumentImport {
   uploaded_by: string | null;
   outcome: string;
   imported_at: string | null;
-  email?: GmailEmailView | null;
+  email?: MailEmailView | null;
 }
 
 export interface PoolDocument {
@@ -558,9 +559,9 @@ export interface PoolCandidateDetail {
   external_profiles?: ExternalProfile[];
 }
 
-// ---------------------------------------------------------------------------- Gmail import
+// ---------------------------------------------------------------------------- Mailbox import
 
-export interface GmailEmailView {
+export interface MailEmailView {
   subject: string | null;
   sender_name: string | null;
   sender_email: string | null;
@@ -571,7 +572,7 @@ export interface GmailEmailView {
   text_truncated?: boolean;
 }
 
-export interface GmailConnection {
+export interface MailConnection {
   connection_id: string;
   provider?: "gmail" | "outlook";
   auth_mode?: "delegated" | "app_only" | null;
@@ -580,8 +581,6 @@ export interface GmailConnection {
   is_owner: boolean;
   owner_name: string | null;
   granted_scopes: string[];
-  read_only: boolean;
-  unexpected_scopes: string[];
   connected_at: string | null;
   last_checked_at: string | null;
   last_refreshed_at: string | null;
@@ -593,17 +592,15 @@ export interface GmailConnection {
   shared_with: { user_id: string; name: string; email: string }[];
 }
 
-export interface GmailConnectionsResponse {
-  configured: boolean;
-  setup_issue: string | null;
+export interface MailConnectionsResponse {
   outlook_configured?: boolean;
   outlook_setup_issue?: string | null;
   can_connect: boolean;
   can_import: boolean;
-  connections: GmailConnection[];
+  connections: MailConnection[];
 }
 
-export interface GmailVariants {
+export interface MailVariants {
   variants: string[];
   suggested: string[];
   rejected: { variant: string; reason: string }[];
@@ -646,7 +643,7 @@ export interface MailSearchSummary {
   empty_text: string | null;
 }
 
-export interface GmailAttachmentPreview {
+export interface MailAttachmentPreview {
   part_id: string;
   filename: string;
   size: number;
@@ -658,7 +655,7 @@ export interface GmailAttachmentPreview {
   import_detail: string | null;
 }
 
-export interface GmailSearchResultItem {
+export interface MailSearchResultItem {
   message_id: string;
   thread_id: string | null;
   subject: string;
@@ -672,12 +669,12 @@ export interface GmailSearchResultItem {
   text_truncated: boolean;
   match: { level: "strong" | "possible" | "weak"; rank: number; explanation: string; variant: string | null;
            broad_only: boolean };
-  attachments: GmailAttachmentPreview[];
+  attachments: MailAttachmentPreview[];
   /** Other open jobs this e-mail's subject also names - HR confirms the job before importing. */
   other_jobs?: { job_id: string; title: string }[];
 }
 
-export interface GmailSearchResponse {
+export interface MailSearchResponse {
   search_id: string;
   complete?: boolean;
   coverage?: { windows_total: number; windows_done: number; period_from: string | null; period_to: string | null;
@@ -693,7 +690,7 @@ export interface GmailSearchResponse {
   date_from: string | null;
   date_to: string | null;
   queries: string[];
-  results: GmailSearchResultItem[];
+  results: MailSearchResultItem[];
   listed: number;
   hidden: number;
   totals: { listed: number; matched: number; hidden: number };
@@ -703,16 +700,16 @@ export interface GmailSearchResponse {
   incomplete_reason: string | null;
 }
 
-export type GmailRunStatus = "queued" | "running" | "completed" | "completed_with_errors" | "cancelled" | "paused_reconnect";
-export type GmailItemStatus = "pending" | "processing" | "imported" | "duplicate" | "rejected" | "failed" | "cancelled";
+export type MailRunStatus = "queued" | "running" | "completed" | "completed_with_errors" | "cancelled" | "paused_reconnect";
+export type MailItemStatus = "pending" | "processing" | "imported" | "duplicate" | "rejected" | "failed" | "cancelled";
 
-export interface GmailImportItem {
+export interface MailImportItem {
   item_id: string;
   message_id: string;
   part_id: string;
   filename: string | null;
   size: number | null;
-  status: GmailItemStatus;
+  status: MailItemStatus;
   reason: string | null;
   attempts: number;
   subject: string | null;
@@ -723,11 +720,11 @@ export interface GmailImportItem {
   pool_candidate_id: string | null;
 }
 
-export interface GmailImportRun {
+export interface MailImportRun {
   run_id: string;
   job_id: string | null;
   provider?: "gmail" | "outlook";
-  status: GmailRunStatus;
+  status: MailRunStatus;
   status_reason: string | null;
   mailbox_email: string;
   connection_id: string | null;
@@ -735,9 +732,9 @@ export interface GmailImportRun {
   started_at: string | null;
   finished_at: string | null;
   cancel_requested: boolean;
-  counts: Record<GmailItemStatus, number>;
+  counts: Record<MailItemStatus, number>;
   total: number;
-  items?: GmailImportItem[];
+  items?: MailImportItem[];
 }
 
 // ---------------------------------------------------------------- Headhunting (internal slice)
