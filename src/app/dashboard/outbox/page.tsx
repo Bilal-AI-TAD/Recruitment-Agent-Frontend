@@ -11,6 +11,7 @@ import { MailSendingStatus, OutboxMessage } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { OUTBOX_TONE } from "@/components/mailbox/MessagesPanel";
+import { MessageReviewModal, approvalOutcome } from "@/components/mailbox/MessageReviewModal";
 
 const FILTERS: { key: string; label: string }[] = [
   { key: "attention", label: "Needs attention" },
@@ -26,6 +27,7 @@ export default function OutboxPage() {
   const [messages, setMessages] = useState<OutboxMessage[] | null>(null);
   const [sending, setSending] = useState<MailSendingStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<OutboxMessage | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -104,11 +106,14 @@ export default function OutboxPage() {
                 {m.body && <p className="mt-2 text-sm text-[#E0E0E0] whitespace-pre-wrap break-words max-h-40 overflow-y-auto">{m.body}</p>}
                 {m.footer && <p className="mt-1 text-xs text-[#B0BEC5] whitespace-pre-wrap break-words">{m.footer}</p>}
                 {m.status_detail && <p className="mt-1 text-xs text-[#B0BEC5]">{m.status_detail}</p>}
+                {m.status === "awaiting_approval" && (m.open_placeholders || []).length > 0 && (
+                  <p className="mt-1 text-xs text-yellow-200">Still to complete before approval: {(m.open_placeholders || []).join(", ")}</p>
+                )}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {m.can_approve && (
-                    <Button size="sm" isLoading={busy === `a-${m.outbox_id}`}
-                      onClick={() => act(`a-${m.outbox_id}`, () => mailAPI.approve(m.outbox_id, m.content_hash), "Approved")}>
-                      <ShieldCheck size={14} className="mr-1" /> Approve this exact message
+                    <Button size="sm" onClick={() => setReviewing(m)} disabled={(m.open_placeholders || []).length > 0}
+                      title={(m.open_placeholders || []).length > 0 ? "Complete the placeholders on the candidate page first" : undefined}>
+                      <ShieldCheck size={14} className="mr-1" /> Review and approve
                     </Button>
                   )}
                   {m.can_edit && m.candidate_id && (
@@ -142,6 +147,23 @@ export default function OutboxPage() {
           </ul>
         )}
       </Card>
+      {reviewing && (
+        <MessageReviewModal canApprove sendingIssue={sending?.issue} onBack={() => setReviewing(null)}
+          content={{ from: reviewing.from || sending?.mailbox || null, to: reviewing.recipients.join(", "),
+                     onRecord: reviewing.recipients[0] || null, subject: reviewing.subject, body: reviewing.body || "",
+                     footer: reviewing.footer, outreach: reviewing.kind === "headhunting_outreach" }}
+          onConfirm={async () => {
+            try {
+              const res = await mailAPI.approve(reviewing.outbox_id, reviewing.content_hash);
+              toast.success(approvalOutcome(res.data as OutboxMessage), { duration: 7000 });
+              setReviewing(null);
+            } catch (err) {
+              toast.error(getErrorMessage(err, "Could not approve the message"));
+            } finally {
+              load();
+            }
+          }} />
+      )}
     </div>
   );
 }

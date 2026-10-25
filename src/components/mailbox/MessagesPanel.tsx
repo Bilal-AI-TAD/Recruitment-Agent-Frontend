@@ -2,12 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { AlertTriangle, CheckCircle2, CornerDownRight, History, Mail, Pencil, PenLine, Send, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CornerDownRight, History, LayoutTemplate, Mail, Pencil, PenLine, Send, ShieldCheck, XCircle } from "lucide-react";
 import { mailAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { CandidateThread, OutboxMessage } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { MessageReviewModal, ReviewContent, approvalOutcome, openPlaceholders } from "./MessageReviewModal";
 
 const inputClass = "w-full bg-[#132F4C] border border-[#2A3F5E] rounded-lg px-3 py-2 text-white text-sm placeholder-[#546E7A] focus:outline-none focus:border-[#00C853]";
 
@@ -31,7 +32,10 @@ function requestId() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-interface TemplateOption { template: string; label: string; subject: string; body: string; footer?: string | null }
+interface TemplateOption { template: string; label: string; description?: string; subject: string; body: string; footer?: string | null }
+
+/** What the review modal is looking at: the unsaved draft, or a saved message awaiting approval. */
+type Review = { content: ReviewContent; message?: OutboxMessage };
 
 const EVENT_LABELS: Record<string, string> = {
   composed: "Written", edited: "Edited – needs approval again", recipient_changed: "Recipient changed",
@@ -61,7 +65,10 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
   const [footer, setFooter] = useState<string | null>(null);
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
   const requestKey = useRef(requestId());
+  const chosen = templates.find((t) => t.template === template);
+  const missing = openPlaceholders(subject, body);
 
   const load = useCallback(async () => {
     try {
@@ -84,8 +91,7 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
       const res = await mailAPI.templates(applicationId);
       const data = res.data as { templates: TemplateOption[] };
       setTemplates(data.templates);
-      const first = data.templates[0];
-      setTemplate(first.template); setSubject(first.subject); setBody(first.body); setFooter(first.footer || null);
+      setTemplate(""); setSubject(""); setBody(""); setFooter(null);   // HR chooses the template first
       setTo(thread?.recipient || "");
       setComposing(true);
     } catch (err) {
@@ -99,21 +105,53 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
     setTemplate(key); setSubject(t.subject); setBody(t.body); setFooter(t.footer || null);
   };
 
-  const submit = async () => {
-    setBusy("compose");
+  const changeTemplate = () => {
+    const edited = chosen && (subject !== chosen.subject || body !== chosen.body);
+    if (edited && !window.confirm("Change the template? Your edits to this draft will be replaced.")) return;
+    setTemplate("");
+  };
+
+  const reviewDraft = () => setReview({ content: {
+    from: thread?.sending.mailbox || null, to: thread?.outreach ? thread.recipient || "" : to.trim(),
+    onRecord: thread?.recipient || null, subject: subject.trim(), body: body.trim(), footer, outreach: !!thread?.outreach } });
+
+  const approveSaved = async (m: OutboxMessage) => {
     try {
-      await mailAPI.compose(applicationId, { template, subject, body, client_request_id: requestKey.current,
-                                             ...(!thread?.outreach && to.trim() ? { recipient: to.trim() } : {}) });
-      requestKey.current = requestId();
-      setComposing(false);
-      toast.success("Saved. It is sent only after someone with approval rights approves it.");
-      load();
+      const res = await mailAPI.approve(m.outbox_id, m.content_hash);
+      toast.success(approvalOutcome(res.data as OutboxMessage), { duration: 7000 });
+      setReview(null);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not save the message"));
+      toast.error(getErrorMessage(err, "Could not approve the message"));
     } finally {
-      setBusy(null);
+      load();
     }
   };
+
+  /** Saves the draft exactly as reviewed (idempotent per draft), then approves that exact text if the user may. */
+  const submitDraft = async () => {
+    let saved: OutboxMessage;
+    try {
+      const res = await mailAPI.compose(applicationId, { template, subject, body, client_request_id: requestKey.current,
+                                                         ...(!thread?.outreach && to.trim() ? { recipient: to.trim() } : {}) });
+      saved = res.data as OutboxMessage;
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not save the message"));
+      return;
+    }
+    requestKey.current = requestId();
+    setComposing(false);
+    setReview(null);
+    if (!canApprove || !saved.can_approve) {
+      toast.success("Approval requested: the message waits in the Outbox until someone with approval rights approves it.");
+      load();
+      return;
+    }
+    await approveSaved(saved);
+  };
+
+  const reviewSaved = (m: OutboxMessage) => setReview({ message: m, content: {
+    from: m.from || thread?.sending.mailbox || null, to: m.recipients.join(", "), onRecord: thread?.recipient || null,
+    subject: m.subject, body: m.body || "", footer: m.footer, outreach: m.kind === "headhunting_outreach" } });
 
   const act = async (key: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(key);
@@ -167,29 +205,51 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
           </div>
         )}
 
-        {composing && (
-          <div className="bg-[#132F4C] rounded-lg p-3 space-y-2" data-testid="compose">
-            <div className="flex flex-wrap gap-2">
+        {composing && !template && (
+          <div className="bg-[#132F4C] rounded-lg p-3 space-y-2" data-testid="template-chooser">
+            <p className="text-sm text-white font-medium">Choose a template</p>
+            <div className="grid gap-2 sm:grid-cols-2">
               {templates.map((t) => (
-                <button key={t.template} onClick={() => pickTemplate(t.template)}
-                  className={cn("px-2 py-1 rounded-full text-xs border", t.template === template
-                    ? "border-[#00C853] text-[#00C853]" : "border-[#2A3F5E] text-[#B0BEC5] hover:text-white")}>{t.label}</button>
+                <button key={t.template} onClick={() => pickTemplate(t.template)} data-testid="template-option"
+                  className="text-left rounded-lg border border-[#2A3F5E] p-3 hover:border-[#00C853] focus:outline-none focus:border-[#00C853]">
+                  <span className="block text-sm text-white font-medium">{t.label}</span>
+                  {t.description && <span className="block text-xs text-[#B0BEC5] mt-0.5">{t.description}</span>}
+                </button>
               ))}
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setComposing(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {composing && template && (
+          <div className="bg-[#132F4C] rounded-lg p-3 space-y-2" data-testid="compose">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-white font-medium" data-testid="compose-template">{chosen?.label}</p>
+              <Button size="sm" variant="ghost" onClick={changeTemplate}><LayoutTemplate size={14} className="mr-1" /> Change template</Button>
             </div>
             <RecipientField outreach={!!thread.outreach} value={to} onChange={setTo} onRecord={thread.recipient} />
             <input className={inputClass} aria-label="Subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
-            <textarea className={cn(inputClass, "min-h-40")} aria-label="Message" value={body} maxLength={10000}
+            <textarea className={cn(inputClass, "min-h-56")} aria-label="Message" value={body} maxLength={10000}
               onChange={(e) => setBody(e.target.value)} />
             {footer && (
               <div className="text-xs text-[#B0BEC5] whitespace-pre-wrap border-t border-[#2A3F5E] pt-2" data-testid="outreach-footer">
                 <span className="text-[#546E7A]">Added automatically (cannot be edited):</span>{"\n"}{footer}
               </div>
             )}
-            <p className="text-xs text-[#546E7A]">Plain text. Nothing is sent now: the message waits for an approval of exactly this text.</p>
+            {missing.length > 0 && (
+              <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-2 text-xs text-yellow-200" data-testid="placeholders">
+                <p className="font-medium">Still to complete – replace each of these (including the brackets) before review:</p>
+                <ul className="list-disc pl-5 mt-1">{missing.map((p) => <li key={p}>{p}</li>)}</ul>
+              </div>
+            )}
+            <p className="text-xs text-[#546E7A]">Plain text. Nothing is sent until you review it and exactly this text is approved.</p>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="ghost" onClick={() => setComposing(false)}>Cancel</Button>
-              <Button size="sm" onClick={submit} isLoading={busy === "compose"} disabled={!subject.trim() || !body.trim() || (!thread.outreach && !to.trim())}>
-                Save and request approval
+              <Button size="sm" onClick={reviewDraft} data-testid="review-draft"
+                disabled={missing.length > 0 || !subject.trim() || !body.trim() || (!thread.outreach && !to.trim())}>
+                Review
               </Button>
             </div>
           </div>
@@ -199,9 +259,15 @@ export function MessagesPanel({ applicationId, permissions }: { applicationId: s
         <ul className="space-y-3">
           {thread.messages.slice().reverse().map((m) => (
             <MessageItem key={m.outbox_id} message={m} busy={busy} canApprove={canApprove} canWrite={canWrite}
-              replies={replies(m.outbox_id)} act={act} mailbox={thread.sending.mailbox} onRecord={thread.recipient} />
+              replies={replies(m.outbox_id)} act={act} mailbox={thread.sending.mailbox} onRecord={thread.recipient}
+              onReview={reviewSaved} />
           ))}
         </ul>
+        {review && (
+          <MessageReviewModal content={review.content} sendingIssue={thread.sending.issue}
+            canApprove={review.message ? true : canApprove} onBack={() => setReview(null)}
+            onConfirm={() => review.message ? approveSaved(review.message) : submitDraft()} />
+        )}
       </CardContent>
     </Card>
   );
@@ -226,10 +292,10 @@ function RecipientField({ outreach, value, onChange, onRecord }: {
   );
 }
 
-function MessageItem({ message: m, busy, canApprove, canWrite, replies, act, mailbox, onRecord }: {
+function MessageItem({ message: m, busy, canApprove, canWrite, replies, act, mailbox, onRecord, onReview }: {
   message: OutboxMessage; busy: string | null; canApprove: boolean; canWrite: boolean; replies: CandidateThread["replies"];
   act: (key: string, fn: () => Promise<unknown>, done: string) => void; mailbox: string | null | undefined;
-  onRecord: string | null;
+  onRecord: string | null; onReview: (m: OutboxMessage) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [to, setTo] = useState(m.recipients[0] || "");
@@ -242,6 +308,7 @@ function MessageItem({ message: m, busy, canApprove, canWrite, replies, act, mai
     setEditing(false);
   }, m.status === "approved" ? "Edited – the approval was removed; it needs approval again" : "Edited – waiting for approval");
   const review = m.status === "awaiting_approval";
+  const missing = m.open_placeholders || [];
   const otherAddress = !sameAddress(m.recipients[0], onRecord);
   return (
     <li className="bg-[#132F4C] rounded-lg p-3" data-testid="outbox-message">
@@ -285,11 +352,15 @@ function MessageItem({ message: m, busy, canApprove, canWrite, replies, act, mai
         </>
       )}
       {m.status_detail && <p className="mt-2 text-xs text-[#B0BEC5]">{m.status_detail}</p>}
+      {review && !editing && missing.length > 0 && (
+        <p className="mt-2 text-xs text-yellow-200" data-testid="message-placeholders">
+          Still to complete before approval: {missing.join(", ")}</p>
+      )}
       <div className="flex flex-wrap gap-2 mt-2">
         {m.can_approve && canApprove && !editing && (
-          <Button size="sm" isLoading={busy === `approve-${m.outbox_id}`}
-            onClick={() => act(`approve-${m.outbox_id}`, () => mailAPI.approve(m.outbox_id, m.content_hash), "Approved – it will be sent from the mailbox")}>
-            <ShieldCheck size={14} className="mr-1" /> Approve this exact message
+          <Button size="sm" onClick={() => onReview(m)} disabled={missing.length > 0} data-testid="review-and-approve"
+            title={missing.length > 0 ? "Edit the message and complete the placeholders first" : undefined}>
+            <ShieldCheck size={14} className="mr-1" /> Review and approve
           </Button>
         )}
         {m.can_edit && canWrite && !editing && (

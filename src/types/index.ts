@@ -943,7 +943,12 @@ export interface OutboxMessage {
   can_approve: boolean;
   can_cancel: boolean;
   can_resolve: boolean;
-  events?: { event: string; actor: string | null; from: string | null; to: string | null; at: string | null }[];
+  /** The company mailbox it is sent from (null when none is connected or configured). */
+  from?: string | null;
+  attachments?: { name: string }[];
+  /** [[placeholders]] still in the text; approval is refused while any remain. */
+  open_placeholders?: string[];
+  events?:{ event: string; actor: string | null; from: string | null; to: string | null; at: string | null }[];
 }
 
 export interface InboundReply {
