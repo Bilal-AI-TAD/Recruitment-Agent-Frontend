@@ -1,6 +1,6 @@
 # TAD Logistics Recruitment Agent – Dashboard
 
-Next.js 16 dashboard for the recruitment agent. It covers jobs, CV import, the ranked candidate list and candidate assessments. For full setup, see the [root README](../README.md).
+Next.js 16 dashboard for the recruitment agent. It covers jobs, CV import, the ranked candidate list and candidate assessments. For full local setup (database, backend, this dashboard), see the backend's `docs/local_setup.md`.
 
 ```bash
 npm install
