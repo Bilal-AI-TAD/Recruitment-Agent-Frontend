@@ -970,3 +970,53 @@ export interface CandidateThread {
   messages: OutboxMessage[];
   replies: InboundReply[];
 }
+
+// ------------------------------------------------ AI providers
+
+/** A model the provider offers; `priced` = a price is established today, so the AI boundary will run it. */
+export interface AiModelOption {
+  id: string;
+  priced: boolean;
+  price: { input: number; cached_input: number | null; output: number; version: string | null;
+           max_input_tokens: number | null } | null;
+}
+
+export interface AiProvider {
+  provider: string;
+  label: string;
+  supported: boolean;
+  key_source: "dashboard" | "env" | null;
+  key_last4: string | null;
+  env_key_name: string;
+  default_model: string;
+  models: AiModelOption[];
+  last_test: { at: string; model: string | null; ok: boolean | null; message: string | null } | null;
+}
+
+export interface AiProvidersResponse {
+  selection: { provider: string; model: string; source: "dashboard" | "env"; key_source: "dashboard" | "env" | null;
+               usable: boolean; issue: string | null };
+  applies_to: string[];
+  refusal_fallbacks: string;
+  providers: AiProvider[];
+  can_manage: boolean;
+  can_test: boolean;
+  notice?: string;
+}
+
+export interface AiLiveModels {
+  provider: string;
+  models: AiModelOption[];
+  priced_not_listed: string[];
+}
+
+export interface AiTestResult {
+  provider: string;
+  model: string;
+  ok: boolean;
+  reply: string | null;
+  latency_ms: number | null;
+  cost_usd: number | null;
+  error_code: string | null;
+  message: string | null;
+}

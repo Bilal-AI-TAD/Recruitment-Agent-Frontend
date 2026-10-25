@@ -15,6 +15,7 @@ import {
   Database,
   UserCog,
   Send,
+  Cpu,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -42,6 +43,8 @@ export function Sidebar() {
     ...navItems,
     ...(["mail.send", "mail.approve_send", "accounts.manage"].some((p) => perms.includes(p))
       ? [{ icon: Send, label: "Outbox", href: "/dashboard/outbox" }] : []),
+    ...(["accounts.manage", "ai.run"].some((p) => perms.includes(p))
+      ? [{ icon: Cpu, label: "AI Providers", href: "/dashboard/ai-providers" }] : []),
     ...(perms.includes("accounts.manage") ? [{ icon: UserCog, label: "Accounts", href: "/dashboard/accounts" }] : []),
   ];
 

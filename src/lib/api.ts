@@ -66,6 +66,16 @@ export const configAPI = {
   get: () => api.get("/config/"),
 };
 
+/** AI Providers page: the provider/model every paid AI call uses, provider keys (owner only), model lists, tests. */
+export const aiProvidersAPI = {
+  list: () => api.get("/ai/providers"),
+  models: (provider: string) => api.get(`/ai/providers/${provider}/models`),
+  setKey: (provider: string, apiKey: string) => api.put(`/ai/providers/${provider}/key`, { api_key: apiKey }),
+  removeKey: (provider: string) => api.delete(`/ai/providers/${provider}/key`),
+  test: (provider: string, model: string) => api.post(`/ai/providers/${provider}/test`, { model }),
+  select: (provider: string, model: string) => api.put("/ai/selection", { provider, model }),
+};
+
 export const jobsAPI = {
   getAll: () => api.get("/jobs/"),
   getById: (jobId: string) => api.get(`/jobs/${jobId}`),
