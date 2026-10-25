@@ -251,9 +251,9 @@ export const analyticsAPI = {
   getScoreDistribution: () => api.get("/analytics/score-distribution"),
 };
 
-/** Optional legacy integration; only usable when the backend reports features.visnext_sync = true. */
-export const visnextAPI = {
-  fetchJobs: () => api.get("/visnext/fetch_jobs"),
+/** Optional legacy integration; only usable when the backend reports features.other_ai_features_sync = true. */
+export const otherAIFeaturesAPI = {
+  fetchJobs: () => api.get("/other_ai_features/fetch_jobs"),
 };
 
 // The APIs below belong to AI calls / interview scheduling, which are not part of the current release.

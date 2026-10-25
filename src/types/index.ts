@@ -213,7 +213,7 @@ export interface AppConfig {
     max_zip_uncompressed_mb: number;
     max_files_per_request: number;
   };
-  features: { visnext_sync: boolean; outlook?: boolean; outlook_setup_issue?: string | null; mail_sending?: boolean };
+  features: { other_ai_features_sync: boolean; outlook?: boolean; outlook_setup_issue?: string | null; mail_sending?: boolean };
 }
 
 export interface AssessmentCriterion {

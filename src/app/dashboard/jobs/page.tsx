@@ -7,7 +7,7 @@ import { ChevronDown, ChevronUp, MapPin, Briefcase, Users, Play, Trash2, Edit, X
 import { CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { JobModal } from "@/components/JobModal";
-import { jobsAPI, visnextAPI, configAPI } from "@/lib/api";
+import { jobsAPI, otherAIFeaturesAPI, configAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { Job } from "@/types";
 import toast, { Toaster } from "react-hot-toast";
@@ -275,13 +275,13 @@ export default function JobsPage() {
     message: "",
   });
   const [deletingJob, setDeletingJob] = useState(false);
-  const [visnextEnabled, setVisnextEnabled] = useState(false);
+  const [otherAIFeaturesEnabled, setOtherAIFeaturesEnabled] = useState(false);
 
   useEffect(() => {
     fetchJobs();
     configAPI.get()
-      .then((response) => setVisnextEnabled(Boolean(response.data?.features?.visnext_sync)))
-      .catch(() => setVisnextEnabled(false));
+      .then((response) => setOtherAIFeaturesEnabled(Boolean(response.data?.features?.other_ai_features_sync)))
+      .catch(() => setOtherAIFeaturesEnabled(false));
   }, []);
 
   const fetchJobs = async () => {
@@ -301,7 +301,7 @@ export default function JobsPage() {
   const handleFetchJobs = async () => {
     setIsFetching(true);
     try {
-      const response = await visnextAPI.fetchJobs();
+      const response = await otherAIFeaturesAPI.fetchJobs();
       const totalJobs = response?.data?.detail?.response?.total_jobs || 0;
       toast.success(`Synced ${totalJobs} jobs`);
       fetchJobs();
@@ -404,9 +404,9 @@ export default function JobsPage() {
           <p className="text-[#B0BEC5]">Create job openings, import CVs and review AI-ranked candidates</p>
         </div>
         <div className="flex gap-3">
-          {visnextEnabled && (
+          {otherAIFeaturesEnabled && (
             <Button variant="outline" onClick={handleFetchJobs} isLoading={isFetching}>
-              Sync from VisNext
+              Sync from Other_AI_features
             </Button>
           )}
           <Button onClick={() => setJobModalOpen(true)}>

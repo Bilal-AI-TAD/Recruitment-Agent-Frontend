@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CVImport } from "@/components/CVImport";
 import { ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
-import { jobsAPI, candidatesAPI, visnextAPI, configAPI } from "@/lib/api";
+import { jobsAPI, candidatesAPI, otherAIFeaturesAPI, configAPI } from "@/lib/api";
 import { ProcessingStatus } from "@/types";
 import { Job, Candidate } from "@/types";
 import toast, { Toaster } from "react-hot-toast";
@@ -340,15 +340,15 @@ export default function CandidatesPage() {
   const [editCandidate, setEditCandidate] = useState<CandidateData | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; candidate: CandidateData | null }>({ isOpen: false, candidate: null });
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: "", message: "" });
-  const [syncingVisnext, setSyncingVisnext] = useState(false);
-  const [visnextEnabled, setVisnextEnabled] = useState(false);
+  const [syncingOtherAIFeatures, setSyncingOtherAIFeatures] = useState(false);
+  const [otherAIFeaturesEnabled, setOtherAIFeaturesEnabled] = useState(false);
   const [deletingCandidate, setDeletingCandidate] = useState(false);
 
   useEffect(() => {
     fetchJobs();
     configAPI.get()
-      .then((response) => setVisnextEnabled(Boolean(response.data?.features?.visnext_sync)))
-      .catch(() => setVisnextEnabled(false));
+      .then((response) => setOtherAIFeaturesEnabled(Boolean(response.data?.features?.other_ai_features_sync)))
+      .catch(() => setOtherAIFeaturesEnabled(false));
   }, []);
 
   useEffect(() => {
@@ -386,19 +386,19 @@ export default function CandidatesPage() {
     }
   };
 
-  const handleSyncFromVisnext = async () => {
-    setSyncingVisnext(true);
+  const handleSyncFromOtherAIFeatures = async () => {
+    setSyncingOtherAIFeatures(true);
     try {
-      await visnextAPI.fetchJobs();
-      toast.success("Data synced from VisNext");
+      await otherAIFeaturesAPI.fetchJobs();
+      toast.success("Data synced from Other_AI_features");
       fetchJobs();
       fetchCandidates();
     } catch (error: any) {
       const detail = error.response?.data?.detail;
-      const message = typeof detail === 'string' ? detail : "Failed to sync from VisNext";
+      const message = typeof detail === 'string' ? detail : "Failed to sync from Other_AI_features";
       setErrorModal({ isOpen: true, title: "Sync Failed", message });
     } finally {
-      setSyncingVisnext(false);
+      setSyncingOtherAIFeatures(false);
     }
   };
 
@@ -477,10 +477,10 @@ export default function CandidatesPage() {
           <p className="text-[#B0BEC5]">Candidates imported from CVs, per job</p>
         </div>
         <div className="flex gap-3">
-          {visnextEnabled && (
-            <Button variant="outline" onClick={handleSyncFromVisnext} isLoading={syncingVisnext}>
+          {otherAIFeaturesEnabled && (
+            <Button variant="outline" onClick={handleSyncFromOtherAIFeatures} isLoading={syncingOtherAIFeatures}>
               <Upload size={16} className="mr-2" />
-              Sync from VisNext
+              Sync from Other_AI_features
             </Button>
           )}
           <Button variant="outline" onClick={() => setResumeModalOpen(true)}>
