@@ -11,6 +11,7 @@ import { MailConnection, MailConnectionsResponse, OutlookStatus } from "@/types"
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/components/pool/PoolBits";
+import { useAuth } from "@/context/AuthContext";
 
 const NONCE_KEY = "outlook_oauth_nonce";
 
@@ -49,6 +50,8 @@ function newNonce(): string {
 /** The company Outlook mailbox: CV import, candidate e-mails (with approval), reply tracking, account e-mails. */
 export function OutlookMailboxCard() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canSyncReplies = ["mail.send", "mail.approve_send", "mail.connect"].some((p) => (user?.permissions || []).includes(p));
   const [status, setStatus] = useState<OutlookStatus | null>(null);
   const [connections, setConnections] = useState<MailConnection[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -139,9 +142,10 @@ export function OutlookMailboxCard() {
           <p className="text-sm text-[#B0BEC5] mt-1">
             The company recruitment mailbox{status?.mailbox ? <> (<span className="text-white">{status.mailbox}</span>)</> : ""}:
             CV import, candidate e-mails after approval, reply tracking and account invitations.
+            It is shared by the whole organization: nobody needs to connect their own Outlook.
           </p>
         </div>
-        {status?.can_connect && !connections.some((c) => c.status === "active" && c.is_owner) && (
+        {status?.can_connect && !connections.some((c) => c.status === "active") && (
           <Button onClick={connect} isLoading={busy === "connect" || busy === "complete"} disabled={!status.configured}
             title={status.configured ? undefined : status.setup_issue || undefined}>
             <Link2 size={16} className="mr-2" /> {status.auth_mode === "app_only" ? "Connect (app access)" : "Connect Outlook"}
@@ -171,24 +175,28 @@ export function OutlookMailboxCard() {
                 <p className="text-white font-medium break-all">{c.mailbox_email}</p>
                 <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                   <span className={`px-2 py-0.5 rounded-full ${STATUS[c.status].className}`}>{STATUS[c.status].label}</span>
-                  <span className="text-[#B0BEC5]">{c.auth_mode === "app_only" ? "App access" : `Signed in by ${c.owner_name || "a colleague"}`}</span>
+                  <span className="text-[#B0BEC5]" data-testid="mailbox-connected-by">
+                    {c.auth_mode === "app_only" ? "App access" : "Organization mailbox"}
+                    {c.connected_by && <> · connected by {c.connected_by}</>}
+                    {c.status === "disconnected" && c.disconnected_by && <> · disconnected by {c.disconnected_by}</>}
+                  </span>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {c.status !== "disconnected" && (
+                {c.status !== "disconnected" && (c.can_use || c.can_manage) && (
                   <Button size="sm" variant="ghost" isLoading={busy === `check-${c.connection_id}`}
                     onClick={() => run(`check-${c.connection_id}`, () => mailImportAPI.check(c.connection_id), "Checked")}>
                     <RefreshCw size={14} className="mr-1" /> Check
                   </Button>
                 )}
-                {c.is_owner && c.status !== "active" && status?.can_connect && (
+                {c.can_manage && c.status !== "active" && status?.can_connect && (
                   <Button size="sm" variant="secondary" isLoading={busy === "connect"} disabled={!status.configured} onClick={connect}>
                     <Link2 size={14} className="mr-1" /> {c.status === "disconnected" ? "Connect again" : "Reconnect"}
                   </Button>
                 )}
-                {c.is_owner && c.status !== "disconnected" && (
+                {c.can_manage && c.status !== "disconnected" && (
                   <Button size="sm" variant="danger" isLoading={busy === `disc-${c.connection_id}`}
-                    onClick={() => window.confirm(`Disconnect ${c.mailbox_email}? The stored Microsoft tokens are deleted. Messages waiting to be sent stay in the outbox until a mailbox is connected again. To remove the app's consent entirely, an administrator does that in Microsoft Entra ID.`) &&
+                    onClick={() => window.confirm(`Disconnect ${c.mailbox_email} for the whole organization? The stored Microsoft tokens are deleted and nobody can import or send until it is connected again. Messages waiting to be sent stay in the outbox until a mailbox is connected again. To remove the app's consent entirely, an administrator does that in Microsoft Entra ID.`) &&
                       run(`disc-${c.connection_id}`, () => mailImportAPI.disconnect(c.connection_id), "Disconnected; tokens deleted")}>
                     <Unplug size={14} className="mr-1" /> Disconnect
                   </Button>
@@ -201,7 +209,8 @@ export function OutlookMailboxCard() {
                 {c.last_checked_at && <> · last checked {new Date(c.last_checked_at).toLocaleString()}</>}
               </div>
               {c.status === "needs_reconnect" && (
-                <div className="text-yellow-300">{ERROR_CODES[c.last_error_code || ""] || "Microsoft access needs to be renewed"}. Reconnect to continue.</div>
+                <div className="text-yellow-300">{ERROR_CODES[c.last_error_code || ""] || "Microsoft access needs to be renewed"}.
+                  {c.can_manage ? " Reconnect to continue." : " Ask someone with the mail.connect permission to reconnect it."}</div>
               )}
               {c.status === "active" && c.last_error_code && (
                 <div className="text-yellow-300">Last check had a problem: {ERROR_CODES[c.last_error_code] || c.last_error_code.replace(/_/g, " ")}</div>
@@ -232,7 +241,7 @@ export function OutlookMailboxCard() {
                 : status.active_connection_id ? "Not run yet" : "Starts when the mailbox is connected"}
               {status.reply_tracking?.last_error && <span className="text-yellow-200"> · last problem: {status.reply_tracking.last_error}</span>}
             </p>
-            {status.active_connection_id && (
+            {status.active_connection_id && canSyncReplies && (
               <Button size="sm" variant="ghost" className="mt-1" isLoading={busy === "sync"}
                 onClick={() => run("sync", () => outlookAPI.syncReplies(), "Replies checked")}>
                 <RefreshCw size={14} className="mr-1" /> Check for replies now

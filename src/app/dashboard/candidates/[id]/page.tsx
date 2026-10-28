@@ -159,7 +159,7 @@ export default function CandidateDetailPage() {
   const candidateId = params.id as string;
   const { user } = useAuth();
   const permissions = user?.permissions || [];
-  const canSeeMessages = ["mail.send", "mail.approve_send", "headhunting.outreach"].some((p) => permissions.includes(p));
+  const canSeeMessages = true;          // shared workspace: every member reads the e-mails; actions keep their permissions
   const [data, setData] = useState<CandidateAssessment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -260,6 +260,14 @@ export default function CandidateDetailPage() {
                 </Link>
               )}
             </p>
+            {(data.added_by_name || data.analysis_requested_by_name || data.shortlist_updated_by_name) && (
+              <p className="text-xs text-[#546E7A] mt-0.5" data-testid="candidate-attribution">
+                {[data.added_by_name && `Added by ${data.added_by_name}`,
+                  data.analysis_requested_by_name && `analysis requested by ${data.analysis_requested_by_name}`,
+                  data.shortlist_updated_by_name && `${data.shortlist ? "shortlisted" : "shortlist changed"} by ${data.shortlist_updated_by_name}`,
+                  data.updated_by_name && `last edited by ${data.updated_by_name}`].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
         </div>
 

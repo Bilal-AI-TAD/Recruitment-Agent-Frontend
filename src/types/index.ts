@@ -28,6 +28,9 @@ export interface Job {
   job_available?: boolean;
   created_at?: string;
   updated_at?: string;
+  /** Attribution only: every member sees every job of the organization. */
+  created_by_name?: string | null;
+  updated_by_name?: string | null;
   candidate_count?: number;
   candidates?: Candidate[];
 }
@@ -275,6 +278,13 @@ interface CandidateCore {
   added_via?: "upload" | "pool" | "manual" | "gmail" | "outlook" | "headhunting";
   cv_version?: number | null;
   profile_version?: number | null;
+  // Attribution (who added it, asked for the AI analysis, changed the shortlist decision, last edited it)
+  added_by_name?: string | null;
+  analysis_requested_by_name?: string | null;
+  analysis_requested_at?: string | null;
+  shortlist_updated_by_name?: string | null;
+  shortlist_updated_at?: string | null;
+  updated_by_name?: string | null;
 }
 
 export interface RankedCandidate extends CandidateCore {
@@ -578,8 +588,12 @@ export interface MailConnection {
   auth_mode?: "delegated" | "app_only" | null;
   mailbox_email: string;
   status: "active" | "needs_reconnect" | "disconnected";
-  is_owner: boolean;
-  owner_name: string | null;
+  /** The mailbox belongs to the organization: everyone sees it, mail.import uses it, mail.connect manages it. */
+  organization_mailbox?: boolean;
+  connected_by: string | null;
+  disconnected_by?: string | null;
+  can_manage: boolean;
+  can_use: boolean;
   granted_scopes: string[];
   connected_at: string | null;
   last_checked_at: string | null;
@@ -589,7 +603,6 @@ export interface MailConnection {
   last_error_at: string | null;
   disconnected_at: string | null;
   revoke_result: string | null;
-  shared_with: { user_id: string; name: string; email: string }[];
 }
 
 export interface MailConnectionsResponse {
@@ -729,6 +742,7 @@ export interface MailImportRun {
   mailbox_email: string;
   connection_id: string | null;
   created_at: string | null;
+  imported_by?: string | null;
   started_at: string | null;
   finished_at: string | null;
   cancel_requested: boolean;
@@ -933,6 +947,8 @@ export interface OutboxMessage {
   job_id: string | null;
   created_by: string | null;
   approved_by: string | null;
+  /** Sending is done by the background worker: "System (Outbox worker) as <mailbox>, approved by <name>". */
+  sent_by?: string | null;
   approved_at: string | null;
   self_approved: boolean;
   created_at: string | null;

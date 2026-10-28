@@ -9,7 +9,8 @@ import { useAuth } from "@/context/AuthContext";
 import { accountsAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 
-interface PermissionInfo { permission: string; label: string; sensitive: boolean; grantable: boolean }
+interface PermissionInfo { permission: string; label: string; sensitive: boolean; grantable: boolean;
+                          for_all_members?: boolean }
 interface AccessRequest { request_id: string; email: string; first_name: string; last_name: string; note: string | null;
   status: string; created_at: string | null }
 interface Member { user_id: string; name: string; email: string; status: string; permissions: string[]; is_owner: boolean }
@@ -25,10 +26,12 @@ function PermissionPicker({ catalog, value, onChange }: { catalog: PermissionInf
     <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5" data-testid="permission-picker">
       {catalog.filter((p) => p.grantable).map((p) => (
         <label key={p.permission} className="flex items-start gap-2 text-xs text-[#B0BEC5]">
-          <input type="checkbox" className="mt-0.5" checked={value.includes(p.permission)} aria-label={p.permission}
+          <input type="checkbox" className="mt-0.5" aria-label={p.permission} disabled={p.for_all_members}
+            checked={p.for_all_members || value.includes(p.permission)}
             onChange={(e) => onChange(e.target.checked ? [...value, p.permission] : value.filter((x) => x !== p.permission))} />
-          <span><span className="text-white font-mono">{p.permission}</span>{p.sensitive &&
-            <span className="ml-1 text-yellow-300">(sensitive)</span>} – {p.label}</span>
+          <span><span className="text-white font-mono">{p.permission}</span>{p.for_all_members
+            ? <span className="ml-1 text-[#00C853]">(included for every member - server setting AI_FOR_ALL_MEMBERS)</span>
+            : p.sensitive && <span className="ml-1 text-yellow-300">(sensitive)</span>} – {p.label}</span>
         </label>
       ))}
     </div>

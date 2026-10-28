@@ -318,6 +318,7 @@ function MessageItem({ message: m, busy, canApprove, canWrite, replies, act, mai
           <p className="text-xs text-[#546E7A] mt-0.5">
             Written by {m.created_by || "–"}{m.approved_by && <> · approved by {m.approved_by}{m.self_approved ? " (the author)" : ""}</>}
             {m.created_at && <> · {new Date(m.created_at).toLocaleString()}</>}
+            {m.sent_by && <> · sent by {m.sent_by}</>}
           </p>
         </div>
         <span className={cn("px-2 py-0.5 rounded-full text-xs", OUTBOX_TONE[m.status])} data-testid="outbox-status">{m.status_label}</span>

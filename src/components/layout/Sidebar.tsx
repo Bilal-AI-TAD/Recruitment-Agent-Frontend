@@ -37,13 +37,13 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  // Owners (accounts.manage) see the Accounts page; the server enforces it regardless.
+  // Shared workspace: every member sees the Outbox (read-only without mail roles). AI Providers (keys, model) and
+  // Accounts are for the owner (accounts.manage); the server enforces it regardless.
   const perms = user?.permissions || [];
   const items = [
     ...navItems,
-    ...(["mail.send", "mail.approve_send", "accounts.manage"].some((p) => perms.includes(p))
-      ? [{ icon: Send, label: "Outbox", href: "/dashboard/outbox" }] : []),
-    ...(["accounts.manage", "ai.run"].some((p) => perms.includes(p))
+    { icon: Send, label: "Outbox", href: "/dashboard/outbox" },
+    ...(perms.includes("accounts.manage")
       ? [{ icon: Cpu, label: "AI Providers", href: "/dashboard/ai-providers" }] : []),
     ...(perms.includes("accounts.manage") ? [{ icon: UserCog, label: "Accounts", href: "/dashboard/accounts" }] : []),
   ];

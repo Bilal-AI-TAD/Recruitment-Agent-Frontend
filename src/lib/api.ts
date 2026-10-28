@@ -173,9 +173,6 @@ export const mailImportAPI = {
   connections: () => api.get("/integrations/mail/connections"),
   check: (connectionId: string) => api.post(`/integrations/mail/connections/${connectionId}/check`),
   disconnect: (connectionId: string) => api.post(`/integrations/mail/connections/${connectionId}/disconnect`),
-  shareableUsers: () => api.get("/integrations/mail/shareable-users"),
-  setShares: (connectionId: string, userIds: string[]) =>
-    api.put(`/integrations/mail/connections/${connectionId}/shares`, { user_ids: userIds }),
   variants: (jobId: string) => api.get(`/integrations/mail/jobs/${jobId}/variants`),
   regenerateVariants: (jobId: string, useAi = false) =>
     api.post(`/integrations/mail/jobs/${jobId}/variants/regenerate`, null, { params: useAi ? { use_ai: true } : {} }),

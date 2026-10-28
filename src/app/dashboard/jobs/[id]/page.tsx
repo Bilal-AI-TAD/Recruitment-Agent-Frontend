@@ -176,6 +176,13 @@ export default function JobDetailPage() {
             <p className="text-[#B0BEC5] text-sm">
               {[job.location, job.job_type, job.required_experience].filter(Boolean).join(" · ")}
             </p>
+            {(job.created_by_name || job.updated_by_name) && (
+              <p className="text-xs text-[#546E7A] mt-0.5" data-testid="job-attribution">
+                {job.created_by_name && <>Created by {job.created_by_name}{job.created_at && <> on {new Date(job.created_at).toLocaleDateString()}</>}</>}
+                {job.updated_by_name && <>{job.created_by_name ? " · " : ""}last updated by {job.updated_by_name}
+                  {job.updated_at && <> on {new Date(job.updated_at).toLocaleDateString()}</>}</>}
+              </p>
+            )}
           </div>
         </div>
         <Button variant="outline" onClick={() => setEditOpen(true)}>
@@ -216,10 +223,8 @@ export default function JobDetailPage() {
             disabledReason="This job is closed. Reopen it to import more CVs."
             onImported={() => { loadRanking(); loadJob(); }}
           />
-          {canImportMail && (
-            <MailImportHistory jobId={jobId} refreshKey={mailRefresh}
-              onOpen={(runId) => { setMailRunId(runId); setMailImportOpen(true); }} />
-          )}
+          <MailImportHistory jobId={jobId} refreshKey={mailRefresh}
+            onOpen={canImportMail ? (runId) => { setMailRunId(runId); setMailImportOpen(true); } : undefined} />
         </Card>
       </div>
 
@@ -299,6 +304,9 @@ export default function JobDetailPage() {
                         <p className="text-xs text-[#B0BEC5] truncate max-w-[220px]" title={candidate.resume_filename}>
                           {candidate.resume_filename}
                         </p>
+                      )}
+                      {candidate.added_by_name && (
+                        <p className="text-xs text-[#546E7A]" data-testid="added-by">Added by {candidate.added_by_name}</p>
                       )}
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         <StatusBadge status={candidate.processing_status} />

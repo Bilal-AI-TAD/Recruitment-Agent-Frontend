@@ -108,7 +108,7 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
   useEffect(() => {
     mailImportAPI.connections().then((res) => {
       const data = res.data as MailConnectionsResponse;
-      const usable = data.connections.filter((c) => c.status === "active");
+      const usable = data.connections.filter((c) => c.status === "active" && c.can_use);
       setConnections(usable);
       if (usable.length) setConnectionId(usable[0].connection_id);
     }).catch((err) => { toast.error(getErrorMessage(err, "Could not load mailboxes")); setConnections([]); });
@@ -351,15 +351,14 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
                   <label className="block text-xs text-[#B0BEC5] mb-1">Mailbox</label>
                   {connections === null ? <p className="text-sm text-[#B0BEC5]">Loading…</p> : connections.length === 0 ? (
                     <p className="text-sm text-yellow-200">
-                      No connected mailbox is available to you. Connect one (or ask its owner to share it) on the{" "}
+                      The organization mailbox is not connected. Someone with the mail.connect permission connects it on the{" "}
                       <Link href="/dashboard/system" className="underline">System page</Link>.
                     </p>
                   ) : (
                     <select className={cn(inputClass, "w-full")} value={connectionId} onChange={(e) => setConnectionId(e.target.value)}>
                       {connections.map((c) => (
                         <option key={c.connection_id} value={c.connection_id}>
-                          Outlook · {c.mailbox_email}
-                          {c.is_owner ? "" : ` (shared by ${c.owner_name || "a colleague"})`}
+                          Outlook · {c.mailbox_email} (organization mailbox)
                         </option>
                       ))}
                     </select>
