@@ -359,10 +359,10 @@ export default function SystemPage() {
                 <p className="text-xs text-[#546E7A]">Not yet incurred</p>
               </div>
               <div className="p-3 bg-[#132F4C] rounded-lg" data-testid="budget-status">
-                <p className="text-[#B0BEC5]">Shared AI budget <span className="text-[#546E7A]">(now)</span></p>
+                <p className="text-[#B0BEC5]">AI usage <span className="text-[#546E7A]">(last 24 h)</span></p>
                 <p className={costs.daily_budget_usd === null ? "text-yellow-300 font-medium" : "text-white font-medium"}>
-                  {costs.daily_budget_usd === null ? "Not configured – paid AI blocked" : `${formatUsd(costs.daily_budget_usd)} per 24 h`}</p>
-                <p className="text-xs text-[#546E7A]">Committed in the last 24 h: {formatUsd(costs.committed_24h_usd)} · prices {costs.price_table_version || "none established today"}</p>
+                  {costs.daily_budget_usd === null ? "Not configured – paid AI blocked" : formatUsd(costs.committed_24h_usd)}</p>
+                <p className="text-xs text-[#546E7A]">Incurred + in flight · prices {costs.price_table_version || "none established today"}</p>
               </div>
             </div>
           )}
@@ -401,10 +401,10 @@ function ReadinessCard({ readiness }: { readiness: AiReadiness }) {
             </div>
           ))}
           <div className="p-3 bg-[#132F4C] rounded-lg">
-            <p className="text-[#B0BEC5]">Shared AI budget</p>
-            <p className={b.configured ? "text-white font-medium" : "text-yellow-300 font-medium"}>
-              {b.configured ? `${formatUsd(b.remaining_usd)} left of ${formatUsd(b.daily_budget_usd)} (24 h)` : "Not configured"}</p>
-            <p className="text-xs text-[#546E7A]">Needs room for about {formatUsd(b.analysis_estimate_usd)} per analysis (a pre-check, not a cap)</p>
+            <p className="text-[#B0BEC5]">AI usage <span className="text-[#546E7A]">(last 24 h)</span></p>
+            <p className={b.configured ? "text-white font-medium" : "text-yellow-300 font-medium"} data-testid="ai-usage-24h">
+              {b.configured ? formatUsd(b.committed_24h_usd) : "Not configured – paid AI blocked"}</p>
+            <p className="text-xs text-[#546E7A]">Shared by the whole organization (incurred + in flight)</p>
           </div>
         </div>
         <p className="text-xs text-[#546E7A]">Requires: {readiness.permissions_required.join(", ")}. Re-checked by the server at every paid

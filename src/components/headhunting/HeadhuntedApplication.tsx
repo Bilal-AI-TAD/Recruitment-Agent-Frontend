@@ -103,7 +103,7 @@ export function HeadhuntedApplication({ data, onChanged }: { data: CandidateAsse
         ) : (
           <div className="space-y-2">
             <Button size="sm" isLoading={busy === "analysis"} disabled={blockers.length > 0 || running} onClick={analyse}>
-              {`Run AI analysis (paid · reserves ${formatUsd(state?.max_cost_usd ?? null)} of the daily budget)`}
+              {`Run AI analysis (paid · at most ${formatUsd(state?.max_cost_usd ?? null)})`}
             </Button>
             {running && <p className="text-xs text-blue-300">Analysis in progress – this page refreshes automatically.</p>}
             {/* The identity check is already shown above, next to its confirm button below. */}
@@ -119,8 +119,8 @@ export function HeadhuntedApplication({ data, onChanged }: { data: CandidateAsse
               {latest.cost ? formatUsd(latest.cost.incurred_usd) : "Unknown"}</strong>
               {latest.cost && latest.cost.unknown_calls > 0 &&
                 ` + ${latest.cost.unknown_calls} call(s) unknown/uncertain (counted at up to ${formatUsd(latest.cost.uncertain_reserved_usd)})`}</p>
-            <p className="text-[#546E7A]">Reserved before the analysis: {formatUsd(latest.reserved_usd)} – a reservation against the
-              daily budget, not a cap; every call is bounded and reconciled from reported usage.</p>
+            <p className="text-[#546E7A]">Reserved before the analysis: {formatUsd(latest.reserved_usd)} – released once the actual
+              cost is known; every call is bounded and reconciled from reported usage.</p>
             {latest.status === "failed" && latest.error &&
               <span className="block text-[#FF8A80]">{latest.error}</span>}
           </div>

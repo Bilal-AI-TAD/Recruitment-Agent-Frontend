@@ -1,4 +1,5 @@
 "use client";
+import { EstimateNote } from "@/components/ui/EstimateNote";
 
 import React, { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -140,6 +141,7 @@ export function PoolPickerModal({ jobId, jobTitle, onClose, onAdded }: {
             <Button size="sm" variant="ghost" disabled={!result || page >= result.pages} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></Button>
           </div>
           <div className="flex gap-2">
+            <EstimateNote count={selected.size} kind="scoring" className="self-center" />
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button onClick={add} disabled={selected.size === 0} isLoading={saving}>Add & assess {selected.size || ""}</Button>
           </div>

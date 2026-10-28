@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { EstimateNote } from "@/components/ui/EstimateNote";
 import { Upload, FileText, CheckCircle2, AlertTriangle, XCircle, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
@@ -148,6 +149,12 @@ export function CVImport({ jobId, disabled, disabledReason, onImported }: CVImpo
               </li>
             ))}
           </ul>
+          <EstimateNote count={files.filter((f) => !f.name.toLowerCase().endsWith(".zip")).length}
+            perCvOnly={files.some((f) => f.name.toLowerCase().endsWith(".zip"))
+              && files.every((f) => f.name.toLowerCase().endsWith(".zip"))} className="mb-2" />
+          {files.some((f) => f.name.toLowerCase().endsWith(".zip")) && files.some((f) => !f.name.toLowerCase().endsWith(".zip")) && (
+            <EstimateNote count={1} perCvOnly className="mb-2" />
+          )}
           <Button onClick={handleUpload} isLoading={isUploading} disabled={disabled}>
             Upload {files.length} file{files.length === 1 ? "" : "s"}
           </Button>

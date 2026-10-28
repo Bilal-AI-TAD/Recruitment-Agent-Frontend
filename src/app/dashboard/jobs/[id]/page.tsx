@@ -18,6 +18,8 @@ import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/Can
 import { candidatesAPI, configAPI, jobsAPI, openCandidateCV } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { Job, JobRanking, RankedCandidate } from "@/types";
+import { formatUsd } from "@/lib/cost";
+import { useAiEstimate } from "@/lib/useAiEstimate";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -30,6 +32,7 @@ export default function JobDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const estimate = useAiEstimate();
   const [processing, setProcessing] = useState(false);
   const [poolOpen, setPoolOpen] = useState(false);
   const [mailboxEnabled, setMailboxEnabled] = useState(false);
@@ -175,6 +178,12 @@ export default function JobDetailPage() {
             </div>
             <p className="text-[#B0BEC5] text-sm">
               {[job.location, job.job_type, job.required_experience].filter(Boolean).join(" · ")}
+            </p>
+            <p className="text-xs text-[#B0BEC5] mt-0.5" data-testid="job-ai-cost"
+              title="Actual AI cost of this job from the cost log: every extraction and scoring attempt, retries included.">
+              AI cost for this job: <span className="text-white">{formatUsd(job.ai_cost_usd ?? 0)}</span>
+              {` · ${job.ai_cvs_analysed ?? 0} CV${job.ai_cvs_analysed === 1 ? "" : "s"} analysed`}
+              {(job.ai_cost_uncertain_usd ?? 0) > 0 && <> · plus up to {formatUsd(job.ai_cost_uncertain_usd)} billing uncertain</>}
             </p>
             {(job.created_by_name || job.updated_by_name) && (
               <p className="text-xs text-[#546E7A] mt-0.5" data-testid="job-attribution">
@@ -398,7 +407,7 @@ export default function JobDetailPage() {
                             isLoading={busyId === candidate.candidate_id}
                             onClick={() => runAction(candidate.candidate_id, () => candidatesAPI.reassess(candidate.candidate_id), "Re-assessment queued")}
                           >
-                            Re-assess
+                            Re-assess{estimate && <span className="ml-1 opacity-80">≈ {formatUsd(estimate.per_scoring_usd)}</span>}
                           </Button>
                         )}
                         {candidate.processing_status === "completed" && (

@@ -15,6 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 import { candidatesAPI, openCandidateCV, scheduleAPI } from "@/lib/api";
 import { getErrorMessage, INTERVIEW_FEATURES_ENABLED } from "@/lib/utils";
 import { CandidateAssessment } from "@/types";
+import { formatUsd } from "@/lib/cost";
+import { useAiEstimate } from "@/lib/useAiEstimate";
 
 type Json = Record<string, unknown>;
 
@@ -163,6 +165,7 @@ export default function CandidateDetailPage() {
   const [data, setData] = useState<CandidateAssessment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const estimate = useAiEstimate();
 
   const load = useCallback(async () => {
     try {
@@ -284,7 +287,8 @@ export default function CandidateDetailPage() {
           )}
           {data.processing_status === "completed" && data.added_via !== "headhunting" && (
             <Button variant="outline" isLoading={busy === "reassess"} onClick={() => run("reassess", () => candidatesAPI.reassess(data.candidate_id), "Re-assessment queued")}>
-              <RotateCcw size={16} className="mr-2" /> Re-assess
+              <RotateCcw size={16} className="mr-2" /> Re-assess{estimate && <span className="ml-1 text-xs opacity-80">
+                · ≈ {formatUsd(estimate.per_scoring_usd)} (estimate)</span>}
             </Button>
           )}
           {data.processing_status === "completed" && (

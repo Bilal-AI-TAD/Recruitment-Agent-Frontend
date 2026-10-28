@@ -1,4 +1,5 @@
 "use client";
+import { EstimateNote } from "@/components/ui/EstimateNote";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -558,6 +559,7 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
                 : "The sender is kept as the e-mail's source; the candidate is identified from the CV itself."}
             </p>
             <div className="flex gap-2">
+              <EstimateNote count={selectedCount} className="self-center" />
               <Button variant="ghost" onClick={onClose}>Cancel</Button>
               <Button onClick={startImport} disabled={!selectedCount || needsConfirmation > 0} isLoading={busy === "import"}>
                 <Paperclip size={16} className="mr-2" /> Import {selectedCount} CV{selectedCount === 1 ? "" : "s"}

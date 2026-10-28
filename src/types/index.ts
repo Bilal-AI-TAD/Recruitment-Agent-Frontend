@@ -31,6 +31,10 @@ export interface Job {
   /** Attribution only: every member sees every job of the organization. */
   created_by_name?: string | null;
   updated_by_name?: string | null;
+  /** Actual AI cost of this job from the cost log (every attempt), and failed calls with uncertain billing. */
+  ai_cost_usd?: number;
+  ai_cost_uncertain_usd?: number;
+  ai_cvs_analysed?: number;
   candidate_count?: number;
   candidates?: Candidate[];
 }
@@ -775,6 +779,7 @@ export interface HHConfig {
     max_cost_usd_per_run: number | null;
     daily_budget_usd: number | null;
     daily_remaining_usd: number | null;
+    daily_used_usd?: number | null;
   };
   retention: {
     days: number;

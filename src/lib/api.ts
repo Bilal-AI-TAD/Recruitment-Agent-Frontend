@@ -253,6 +253,7 @@ export const analyticsAPI = {
     api.get("/analytics/token-usage", { params: typeof range === "string" ? { period: range } : range }),
   getTokenSummary: (range?: { start?: string; end?: string }) => api.get("/analytics/token-summary", { params: range || {} }),
   getAiReadiness: (headhunted = false) => api.get("/analytics/ai-readiness", { params: { headhunted } }),
+  getAiEstimate: () => api.get("/analytics/ai-estimate"),
   getStorageStatus: () => api.get("/analytics/storage-status"),
   getRecentActivity: (limit = 10) => api.get("/analytics/recent-activity", { params: { limit } }),
   getScoreDistribution: () => api.get("/analytics/score-distribution"),

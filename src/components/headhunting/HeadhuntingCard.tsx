@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { headhuntingAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
+import { formatUsd } from "@/lib/cost";
 import { HHConfig, HHRun } from "@/types";
 import { CostBadge, DisclaimerBanner, RunStatusBadge } from "./HeadhuntingBits";
 
@@ -69,7 +70,7 @@ function StartRunModal({ jobId, jobLocation, config, onClose, onStarted }: {
               <span className={aiAllowed ? "text-white font-medium" : ""}>AI assessment ({config.ai.model})</span> <CostBadge mode="ai" />
               <span className="block">Paid: at most
               {" "}${config.ai.max_cost_usd_per_run?.toFixed(2)} per run
-              {config.ai.daily_remaining_usd != null && <> · ${config.ai.daily_remaining_usd.toFixed(2)} left today</>}.</span>
+              {config.ai.daily_used_usd != null && <> · used in the last 24 h: {formatUsd(config.ai.daily_used_usd)}</>}.</span>
               {!aiAllowed && <span className="block text-xs text-[#546E7A]">
                 {config.ai.unavailable_reason || "Needs the headhunting.run_ai permission."}</span>}
             </span>

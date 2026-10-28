@@ -10,6 +10,7 @@ import { JobModal } from "@/components/JobModal";
 import { jobsAPI, otherAIFeaturesAPI, configAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { Job } from "@/types";
+import { formatUsd } from "@/lib/cost";
 import toast, { Toaster } from "react-hot-toast";
 
 interface ExpandedJob {
@@ -163,6 +164,8 @@ function JobCard({
                   <span className="flex items-center gap-1">
                     <Users size={14} />
                     {job.candidate_count || 0} CV{job.candidate_count === 1 ? "" : "s"}
+                    <span className="ml-2 text-[#546E7A]" data-testid="job-list-ai-cost" title="Actual AI cost of this job">
+                      · AI {formatUsd(job.ai_cost_usd ?? 0)}</span>
                   </span>
                 </div>
               </div>
