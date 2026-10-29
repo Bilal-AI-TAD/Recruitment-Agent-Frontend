@@ -5,8 +5,10 @@ import { motion } from "framer-motion";
 import { AlertTriangle, CalendarRange, CheckCircle, Download, RefreshCw, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { analyticsAPI, UsageRange } from "@/lib/api";
-import { Toaster } from "react-hot-toast";
+import { analyticsAPI, sharingAPI, UsageRange } from "@/lib/api";
+import toast, { Toaster } from "react-hot-toast";
+import { getErrorMessage } from "@/lib/utils";
+import type { SharingSettings } from "@/types";
 import { OutlookMailboxCard } from "@/components/mailbox/OutlookMailboxCard";
 import { AiReadiness, COST_LABEL, COST_NOTE, CostTotals, formatUsd } from "@/lib/cost";
 
@@ -161,6 +163,7 @@ export default function SystemPage() {
 
       {readiness && <ReadinessCard readiness={readiness} />}
       {storageStatus && <StorageCard status={storageStatus} />}
+      <CvSharingCard />
 
       <Card>
         <CardContent className="p-4 flex flex-wrap items-end gap-3" data-testid="usage-range">
@@ -444,6 +447,56 @@ function StorageCard({ status }: { status: StorageStatus }) {
             {status.pending_deletions}{status.failing_deletions ? ` (${status.failing_deletions} retrying)` : ""}</p>
           <p className="text-xs text-[#546E7A]">Deleted after the records; retried while storage is unavailable</p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** External CV sharing: whether exported "View CV" links open without login (any member may change it). */
+function CvSharingCard() {
+  const [state, setState] = useState<SharingSettings | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    sharingAPI.getSettings().then((r) => setState(r.data)).catch(() => setState(null));
+  }, []);
+  if (!state) return null;
+  const toggle = async () => {
+    setSaving(true);
+    try {
+      const response = await sharingAPI.setEnabled(!state.enabled);
+      setState(response.data);
+      toast.success(response.data.enabled ? "External CV sharing is on" : "External CV sharing is off – all CV links paused");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not change External CV sharing"));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Card data-testid="cv-sharing">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>External CV sharing</CardTitle>
+        <span className={`text-xs px-2 py-1 rounded ${state.enabled ? "bg-[#00C853]/20 text-[#00C853]" : "bg-yellow-500/20 text-yellow-300"}`}
+          data-testid="cv-sharing-state">{state.enabled ? "On" : "Off"}</span>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-start justify-between gap-4 text-sm">
+        <div className="max-w-2xl space-y-1">
+          <p className="text-white">
+            &quot;Export selected to Excel&quot; adds a &quot;View CV&quot; link for each candidate. These links open the original CV
+            without login and have no automatic expiry, so anyone who receives the file can open them.
+          </p>
+          <p className="text-[#B0BEC5]">
+            Turning this off stops all links until it is turned on again. A single CV can be unshared on its candidate page;
+            deleting a CV ends its link. Nothing else in the app becomes public.
+          </p>
+          {state.updated_by_name && (
+            <p className="text-xs text-[#546E7A]">Last changed by {state.updated_by_name}
+              {state.updated_at && <> on {new Date(state.updated_at).toLocaleString()}</>}</p>
+          )}
+        </div>
+        <Button variant={state.enabled ? "outline" : "primary"} onClick={toggle} isLoading={saving} data-testid="cv-sharing-toggle">
+          {state.enabled ? "Turn off" : "Turn on"}
+        </Button>
       </CardContent>
     </Card>
   );

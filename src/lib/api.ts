@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { CvShareStatus, SharingSettings } from "@/types";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL
@@ -90,7 +91,50 @@ export const jobsAPI = {
   },
   processPending: (jobId: string) => api.post(`/jobs/${jobId}/process`),
   ranking: (jobId: string) => api.get(`/jobs/${jobId}/ranking`),
+  /** Excel file of exactly these applications (no AI call; creates or reuses the external CV links). */
+  exportSelected: (jobId: string, candidateIds: string[]) =>
+    api.post(`/jobs/${jobId}/export`, { candidate_ids: candidateIds,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }, { responseType: "blob" }),
 };
+
+/** External CV sharing: the organization's switch, and one application's shared CV link. */
+export const sharingAPI = {
+  getSettings: () => api.get<SharingSettings>("/sharing/settings"),
+  setEnabled: (enabled: boolean) => api.put<SharingSettings>("/sharing/settings", { enabled }),
+  cvShare: (candidateId: string) => api.get<CvShareStatus>(`/candidates/${candidateId}/cv/share`),
+  stopSharing: (candidateId: string) => api.delete<CvShareStatus>(`/candidates/${candidateId}/cv/share`),
+};
+
+/** Download the Excel export of the selected applications; errors come back as a readable message. */
+export async function downloadSelectedExport(jobId: string, candidateIds: string[]): Promise<string> {
+  let response;
+  try {
+    response = await jobsAPI.exportSelected(jobId, candidateIds);
+  } catch (error) {
+    const data = (error as { response?: { data?: unknown } })?.response?.data;
+    if (data instanceof Blob) {
+      let message = "The export failed";
+      try {
+        const detail = JSON.parse(await data.text())?.detail;
+        message = typeof detail === "string" ? detail : detail?.error?.details || message;
+      } catch { /* not JSON */ }
+      throw new Error(message);
+    }
+    throw error;
+  }
+  const header: string = response.headers?.["content-disposition"] || "";
+  const encoded = /filename\*=utf-8''([^;]+)/i.exec(header)?.[1];
+  const filename = encoded ? decodeURIComponent(encoded) : "selected-candidates.xlsx";
+  const url = URL.createObjectURL(response.data as Blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return filename;
+}
 
 export const candidatesAPI = {
   getAll: (jobId?: string, search?: string, shortlistOnly?: boolean) =>

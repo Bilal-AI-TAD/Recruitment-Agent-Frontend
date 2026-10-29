@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge, scoreColor } from "@/components/CandidateStatus";
 import { HeadhuntedApplication } from "@/components/headhunting/HeadhuntedApplication";
 import { MessagesPanel } from "@/components/mailbox/MessagesPanel";
+import { SharedCvStatus } from "@/components/sharing/SharedCvStatus";
 import { useAuth } from "@/context/AuthContext";
 import { candidatesAPI, openCandidateCV, scheduleAPI } from "@/lib/api";
 import { getErrorMessage, INTERVIEW_FEATURES_ENABLED } from "@/lib/utils";
@@ -271,6 +272,7 @@ export default function CandidateDetailPage() {
                   data.updated_by_name && `last edited by ${data.updated_by_name}`].filter(Boolean).join(" · ")}
               </p>
             )}
+            {data.has_resume && <SharedCvStatus candidateId={data.candidate_id} />}
           </div>
         </div>
 

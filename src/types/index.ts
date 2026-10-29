@@ -1046,3 +1046,25 @@ export interface AiTestResult {
   error_code: string | null;
   message: string | null;
 }
+
+/** External CV sharing switch (System page): exported "View CV" links open without login while enabled. */
+export interface SharingSettings {
+  enabled: boolean;
+  updated_by_name: string | null;
+  updated_at: string | null;
+}
+
+export interface CvShareLinkInfo {
+  created_at: string | null;
+  created_by_name: string | null;
+  opened: number;
+  last_opened_at: string | null;
+  current_cv: boolean;
+}
+
+export interface CvShareStatus {
+  sharing_enabled: boolean;
+  shared: boolean;
+  links: CvShareLinkInfo[];
+  revoked?: number;
+}

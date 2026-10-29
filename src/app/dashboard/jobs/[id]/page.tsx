@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Database, Edit, FileText, Mail, Play, RefreshCw, RotateCcw, Star, Info } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Database, Edit, FileSpreadsheet, FileText, Mail, Play, RefreshCw,
+  RotateCcw, Star, Info } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -15,13 +16,15 @@ import { MailImportHistory } from "@/components/mail/MailImportHistory";
 import { HeadhuntingCard } from "@/components/headhunting/HeadhuntingCard";
 import { useAuth } from "@/context/AuthContext";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
-import { candidatesAPI, configAPI, jobsAPI, openCandidateCV } from "@/lib/api";
+import { SelectBox } from "@/components/ui/SelectBox";
+import { candidatesAPI, configAPI, downloadSelectedExport, jobsAPI, openCandidateCV, sharingAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { Job, JobRanking, RankedCandidate } from "@/types";
 import { formatUsd } from "@/lib/cost";
 import { useAiEstimate } from "@/lib/useAiEstimate";
 
 const POLL_INTERVAL_MS = 3000;
+const PAGE_SIZE = 25;
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -41,10 +44,16 @@ export default function JobDetailPage() {
   const [mailRefresh, setMailRefresh] = useState(0);
   const { user } = useAuth();
   const canImportMail = (user?.permissions || []).includes("mail.import");
+  // Selection for the Excel export: kept across pages and refreshes (never changes the candidates themselves).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const [sharingEnabled, setSharingEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     configAPI.get().then((r) => setMailboxEnabled(Boolean(r.data?.features?.outlook)))
       .catch(() => setMailboxEnabled(false));
+    sharingAPI.getSettings().then((r) => setSharingEnabled(r.data.enabled)).catch(() => setSharingEnabled(null));
   }, []);
 
   const loadJob = useCallback(async () => {
@@ -79,6 +88,39 @@ export default function JobDetailPage() {
     const timer = setInterval(loadRanking, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [inProgress, loadRanking]);
+
+  // Applications that were removed drop out of the selection; the page stays within range.
+  const rankedIds = (ranking?.candidates || []).map((c) => c.candidate_id).join(",");
+  useEffect(() => {
+    if (!ranking) return;
+    const present = new Set(ranking.candidates.map((c) => c.candidate_id));
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => present.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+    setPage((p) => Math.min(p, Math.max(1, Math.ceil(ranking.candidates.length / PAGE_SIZE))));
+  }, [rankedIds]);
+
+  const toggleSelected = (candidateId: string, on: boolean) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (on) next.add(candidateId); else next.delete(candidateId);
+    return next;
+  });
+
+  const handleExport = async () => {
+    if (!selected.size) return;
+    setExporting(true);
+    try {
+      const order = (ranking?.candidates || []).map((c) => c.candidate_id).filter((id) => selected.has(id));
+      const filename = await downloadSelectedExport(jobId, order);
+      toast.success(`Exported ${order.length} candidate${order.length === 1 ? "" : "s"} to ${filename}`);
+    } catch (error) {
+      const plain = error instanceof Error && !(error as { response?: unknown }).response;
+      toast.error(plain ? (error as Error).message : getErrorMessage(error, "The export failed"));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const runAction = async (candidateId: string, action: () => Promise<unknown>, success: string) => {
     setBusyId(candidateId);
@@ -138,6 +180,15 @@ export default function JobDetailPage() {
   const isOpen = job.job_available !== false;
   const candidates = ranking?.candidates || [];
   const staleCount = candidates.filter((c) => c.is_stale).length;
+  const pageCount = Math.max(1, Math.ceil(candidates.length / PAGE_SIZE));
+  const pageRows = candidates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const selectedOnPage = pageRows.filter((c) => selected.has(c.candidate_id)).length;
+  const allOnPage = pageRows.length > 0 && selectedOnPage === pageRows.length;
+  const selectPage = (on: boolean) => setSelected((prev) => {
+    const next = new Set(prev);
+    pageRows.forEach((c) => (on ? next.add(c.candidate_id) : next.delete(c.candidate_id)));
+    return next;
+  });
 
   return (
     <div className="space-y-6">
@@ -279,6 +330,41 @@ export default function JobDetailPage() {
           </p>
         )}
 
+        {candidates.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3 rounded-lg border border-[#2A3F5E] bg-[#0A1929]/60 px-2 py-1"
+            data-testid="selection-toolbar">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-[#B0BEC5]">
+              <div className="flex items-center gap-1 pr-2">
+                <SelectBox checked={allOnPage} indeterminate={selectedOnPage > 0} onChange={selectPage}
+                  label="Select all on this page" testId="select-page" />
+                <button type="button" className="text-white hover:text-[#00C853]" onClick={() => selectPage(!allOnPage)}>
+                  Select all on this page
+                </button>
+              </div>
+              <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold",
+                selected.size ? "bg-[#00C853]/20 text-[#00C853]" : "bg-[#132F4C] text-[#B0BEC5]")} data-testid="selected-count"
+                aria-live="polite">
+                {selected.size} selected of {candidates.length}
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} disabled={!selected.size}>
+                Clear selection
+              </Button>
+            </div>
+            <div className="flex flex-col items-end gap-0.5 py-1">
+              <Button size="sm" onClick={handleExport} disabled={!selected.size} isLoading={exporting}
+                title={selected.size ? "Download an Excel file of exactly the selected candidates" : "Select at least one candidate"}>
+                <FileSpreadsheet size={14} className="mr-1" />
+                Export selected to Excel
+              </Button>
+              <p className="text-[11px] text-[#546E7A] max-w-[360px] text-right" data-testid="export-note">
+                {sharingEnabled === false
+                  ? "External CV sharing is off – the file will not include CV links."
+                  : "CV links in the file open without login and have no automatic expiry."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {candidates.length === 0 ? (
           <p className="text-[#B0BEC5] text-center py-8">No CVs imported yet. Upload CVs above to start.</p>
         ) : (
@@ -292,11 +378,13 @@ export default function JobDetailPage() {
                   <th className="py-2 pr-3 font-medium">Strengths</th>
                   <th className="py-2 pr-3 font-medium">Missing / unknown</th>
                   <th className="py-2 font-medium text-right">Actions</th>
+                  <th className="py-2 pl-2 font-medium text-center w-14">Select</th>
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((candidate) => (
-                  <tr key={candidate.candidate_id} className="border-b border-[#2A3F5E]/50 align-top">
+                {pageRows.map((candidate) => (
+                  <tr key={candidate.candidate_id} data-testid="ranked-row"
+                    className={cn("border-b border-[#2A3F5E]/50 align-top", selected.has(candidate.candidate_id) && "bg-[#00C853]/10")}>
                     <td className="py-3 pr-3 text-white font-semibold">{candidate.rank ?? "—"}</td>
                     <td className="py-3 pr-3 min-w-[180px]">
                       <Link href={`/dashboard/candidates/${candidate.candidate_id}`} className="text-white font-medium hover:text-[#00C853]">
@@ -427,10 +515,27 @@ export default function JobDetailPage() {
                         )}
                       </div>
                     </td>
+                    <td className="py-1.5 pl-2 text-center">
+                      <SelectBox checked={selected.has(candidate.candidate_id)}
+                        onChange={(on) => toggleSelected(candidate.candidate_id, on)}
+                        label={`Select ${candidate.name} for export`} testId="row-select" />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {pageCount > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-4 text-sm text-[#B0BEC5]" data-testid="ranking-pagination">
+            <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <ChevronLeft size={16} /> Previous
+            </Button>
+            <span>Page {page} of {pageCount} · {candidates.length} candidates</span>
+            <Button size="sm" variant="ghost" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>
+              Next <ChevronRight size={16} />
+            </Button>
           </div>
         )}
       </Card>
