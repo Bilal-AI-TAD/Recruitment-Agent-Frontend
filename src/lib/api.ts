@@ -226,7 +226,7 @@ export const mailImportAPI = {
   search: (data: { connection_id: string; job_id?: string | null; variants: string[]; date_from?: string; date_to?: string;
                    mode?: "narrow" | "broad"; confirm_broad?: boolean }) => api.post("/integrations/mail/searches", data),
   more: (searchId: string) => api.post(`/integrations/mail/searches/${searchId}/more`),
-  startImport: (data: { search_id: string; selections: { message_id: string; part_ids: string[]; confirm_job?: boolean }[];
+  startImport: (data: { search_id: string; selections: { message_id: string; part_ids: string[] }[];
                         client_request_id: string }) => api.post("/integrations/mail/imports", data),
   imports: (jobId?: string | null) => api.get("/integrations/mail/imports", { params: jobId ? { job_id: jobId } : {} }),
   run: (runId: string) => api.get(`/integrations/mail/imports/${runId}`),

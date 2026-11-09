@@ -99,7 +99,6 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
   const [searchError, setSearchError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);   // e-mails checked while a search continues
   const [skipped, setSkipped] = useState<MailSkippedMessage[]>([]);
-  const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ from: string; value: string } | null>(null);
   const [previewText, setPreviewText] = useState("");
   const [preview, setPreview] = useState<MailPhrasePreview[] | null>(null);
@@ -222,7 +221,6 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
       let data = res.data as MailSearchResponse;
       let found = data.results, skippedSoFar = data.skipped || [];
       setSelected({});
-      setConfirmed(new Set());
       // Each server step stops after a few seconds to stay responsive; continue until the period is fully checked,
       // so an unfinished search is never shown as "nothing found".
       for (let round = 0; data.incomplete && data.can_load_more && round < AUTO_CONTINUE_ROUNDS; round++) {
@@ -275,26 +273,29 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
     next[messageId] = parts;
     return next;
   });
+  // E-mails that also name another open job are left for HR to tick: selecting one is the decision that it
+  // belongs to this job.
   const selectStrong = () => {
     const next: Record<string, Set<string>> = {};
     for (const r of results) {
-      if (r.match.level !== "strong") continue;
+      if (r.match.level !== "strong" || (r.other_jobs || []).length) continue;
       const parts = r.attachments.filter(selectable).map((a) => a.part_id);
       if (parts.length) next[r.message_id] = new Set(parts);
     }
     setSelected(next);
   };
   const selectedCount = useMemo(() => Object.values(selected).reduce((n, s) => n + s.size, 0), [selected]);
-  const needsConfirmation = useMemo(() => results.filter((r) => (r.other_jobs || []).length
-    && selected[r.message_id]?.size && !confirmed.has(r.message_id)).length, [results, selected, confirmed]);
+  const namesOtherJob = (r: MailSearchResultItem) => (r.other_jobs || []).length > 0;
+  const selectedNamingOtherJobs = results.filter((r) => namesOtherJob(r) && selected[r.message_id]?.size).length;
+  const leftForReview = results.filter((r) => namesOtherJob(r) && r.match.level === "strong"
+    && r.attachments.some(selectable) && !selected[r.message_id]?.size).length;
 
   const startImport = async () => {
     if (!search || !selectedCount) return;
     setBusy("import");
     try {
       const selections = Object.entries(selected).filter(([, parts]) => parts.size)
-        .map(([message_id, parts]) => ({ message_id, part_ids: Array.from(parts),
-                                          ...(confirmed.has(message_id) ? { confirm_job: true } : {}) }));
+        .map(([message_id, parts]) => ({ message_id, part_ids: Array.from(parts) }));
       const res = await mailImportAPI.startImport({ search_id: search.search_id, selections,
                                                client_request_id: requestKey.current });
       requestKey.current = requestId();
@@ -522,12 +523,7 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
                   <ul className="space-y-3">
                     {results.map((r) => <ResultCard key={r.message_id} result={r} selected={selected[r.message_id]}
                                                     onToggle={(part) => toggle(r.message_id, part)} selectable={selectable}
-                                                    jobTitle={jobTitle} confirmed={confirmed.has(r.message_id)}
-                                                    onConfirm={(yes) => setConfirmed((prev) => {
-                                                      const next = new Set(prev);
-                                                      if (yes) next.add(r.message_id); else next.delete(r.message_id);
-                                                      return next;
-                                                    })} />)}
+                                                    jobTitle={jobTitle} />)}
                   </ul>
                   {skipped.length > 0 && (
                     <details open className="mt-4" data-testid="skipped-emails">
@@ -553,15 +549,22 @@ export function MailImportModal({ jobId, jobTitle, initialRunId, onClose, onImpo
 
         {!run && search && (
           <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-[#2A3F5E]">
-            <p className="text-xs text-[#546E7A]">
-              {needsConfirmation
-                ? <span className="text-yellow-200">{needsConfirmation} selected e-mail(s) also name another open job – confirm the job on each before importing.</span>
-                : "The sender is kept as the e-mail's source; the candidate is identified from the CV itself."}
+            <p className="text-xs text-[#546E7A]" data-testid="other-job-note">
+              {selectedNamingOtherJobs > 0 && (
+                <span className="block text-yellow-200">{selectedNamingOtherJobs} selected e-mail(s) also name another
+                  open job – they will be imported into {jobTitle || "this job"}.</span>
+              )}
+              {leftForReview > 0 && (
+                <span className="block text-yellow-200">{leftForReview} e-mail(s) that also name another open job were
+                  not selected automatically – tick them if they belong to {jobTitle || "this job"}.</span>
+              )}
+              {!selectedNamingOtherJobs && !leftForReview
+                && "The sender is kept as the e-mail's source; the candidate is identified from the CV itself."}
             </p>
             <div className="flex gap-2">
               <EstimateNote count={selectedCount} className="self-center" />
               <Button variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button onClick={startImport} disabled={!selectedCount || needsConfirmation > 0} isLoading={busy === "import"}>
+              <Button onClick={startImport} disabled={!selectedCount} isLoading={busy === "import"}>
                 <Paperclip size={16} className="mr-2" /> Import {selectedCount} CV{selectedCount === 1 ? "" : "s"}
               </Button>
             </div>
@@ -595,10 +598,9 @@ function SearchSummary({ summary, poolOnly }: { summary: NonNullable<MailSearchR
   );
 }
 
-function ResultCard({ result, selected, onToggle, selectable, jobTitle, confirmed, onConfirm }: {
+function ResultCard({ result, selected, onToggle, selectable, jobTitle }: {
   result: MailSearchResultItem; selected?: Set<string>; onToggle: (partId: string) => void;
-  selectable: (a: MailAttachmentPreview) => boolean; jobTitle?: string; confirmed: boolean;
-  onConfirm: (yes: boolean) => void;
+  selectable: (a: MailAttachmentPreview) => boolean; jobTitle?: string;
 }) {
   const otherJobs = result.other_jobs || [];
   const match = MATCH[result.match.level] || MATCH.weak;
@@ -623,10 +625,8 @@ function ResultCard({ result, selected, onToggle, selectable, jobTitle, confirme
       {otherJobs.length > 0 && (
         <div className="mt-2 rounded border border-yellow-500/40 bg-yellow-500/10 p-2 text-xs text-yellow-200">
           <p className="flex items-center gap-1"><AlertTriangle size={12} /> Also names another open job: {otherJobs.map((j) => j.title).join(", ")}.</p>
-          <label className="flex items-center gap-2 mt-1">
-            <input type="checkbox" checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />
-            This is an application for {jobTitle || "this job"}
-          </label>
+          <p className="mt-0.5 text-yellow-200/80">Not selected automatically. Tick the CV below if this is an application
+            for {jobTitle || "this job"}.</p>
         </div>
       )}
       {result.text && (

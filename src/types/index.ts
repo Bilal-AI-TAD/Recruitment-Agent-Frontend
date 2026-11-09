@@ -687,7 +687,8 @@ export interface MailSearchResultItem {
   match: { level: "strong" | "possible" | "weak"; rank: number; explanation: string; variant: string | null;
            broad_only: boolean };
   attachments: MailAttachmentPreview[];
-  /** Other open jobs this e-mail's subject also names - HR confirms the job before importing. */
+  /** Other open jobs (with a different title) this e-mail's subject also names: shown as a warning and not selected
+   *  automatically; HR ticking the CV is the decision. */
   other_jobs?: { job_id: string; title: string }[];
 }
 
