@@ -17,6 +17,7 @@ import { HeadhuntingCard } from "@/components/headhunting/HeadhuntingCard";
 import { useAuth } from "@/context/AuthContext";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
 import { SelectBox } from "@/components/ui/SelectBox";
+import { StaleBadge, staleBreakdownText } from "@/components/StaleBadge";
 import { candidatesAPI, configAPI, downloadSelectedExport, jobsAPI, openCandidateCV, sharingAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { Job, JobRanking, RankedCandidate } from "@/types";
@@ -180,6 +181,7 @@ export default function JobDetailPage() {
   const isOpen = job.job_available !== false;
   const candidates = ranking?.candidates || [];
   const staleCount = candidates.filter((c) => c.is_stale).length;
+  const multiReason = candidates.some((c) => (c.stale_reasons || []).length > 1);
   const pageCount = Math.max(1, Math.ceil(candidates.length / PAGE_SIZE));
   const pageRows = candidates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const selectedOnPage = pageRows.filter((c) => selected.has(c.candidate_id)).length;
@@ -325,8 +327,12 @@ export default function JobDetailPage() {
         </p>
 
         {staleCount > 0 && (
-          <p className="text-xs text-yellow-300 mb-3">
-            {staleCount} assessment(s) are out of date (job edited, newer CV version, or scoring/model changed). Use &quot;Re-assess&quot; to update them.
+          <p className="text-xs text-yellow-300 mb-3" data-testid="stale-banner">
+            {[`${staleCount} assessment${staleCount === 1 ? " is" : "s are"} out of date`
+              + (staleBreakdownText(ranking?.stale_breakdown) ? `: ${staleBreakdownText(ranking?.stale_breakdown)}.` : "."),
+              multiReason ? "Some have more than one reason." : "",
+              "Point at or tap a candidate's \"Out of date\" badge for details, then use \"Re-assess\" to update."]
+              .filter(Boolean).join(" ")}
           </p>
         )}
 
@@ -440,12 +446,12 @@ export default function JobDetailPage() {
                         <p className="text-xs text-[#FF8A80] mt-1 max-w-[260px]">{candidate.processing_error}</p>
                       )}
                     </td>
-                    <td className="py-3 pr-3 whitespace-nowrap">
+                    <td className="py-3 pr-3 whitespace-nowrap" data-testid="match-cell">
                       <ScoreBadge score={candidate.total_score} />
                       {candidate.is_stale && (
-                        <p className="text-xs text-yellow-300 max-w-[140px]" title={(candidate.stale_reasons || []).map((r) => r.label).join("; ")}>
-                          Out of date{candidate.stale_reasons?.length ? `: ${candidate.stale_reasons.map((r) => r.label).join("; ")}` : ""}
-                        </p>
+                        <div className="mt-1">
+                          <StaleBadge reasons={candidate.stale_reasons || []} />
+                        </div>
                       )}
                     </td>
                     <td className="py-3 pr-3 max-w-[260px]">
