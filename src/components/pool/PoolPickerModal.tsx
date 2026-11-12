@@ -70,7 +70,11 @@ export function PoolPickerModal({ jobId, jobTitle, onClose, onAdded }: {
       const { added, skipped, results } = res.data as { added: number; skipped: number; results: { status: string; reason?: string; name?: string }[] };
       const blocked = (res.data as { processing_blocked?: { message: string }[] | null }).processing_blocked;
       if (blocked?.length) toast(`${added} candidate(s) added – not analysed yet (Pending): ${blocked[0].message}`, { icon: "⚠️", duration: 8000 });
-      else toast.success(`${added} candidate(s) added and queued for assessment${skipped ? `, ${skipped} skipped` : ""}`);
+      else {
+        const readded = (res.data as { readded?: number }).readded || 0;
+        toast.success(`${added} candidate(s) added${readded ? ` (${readded} re-added with their earlier assessment)` : ""}`
+          + `${added > readded ? " and queued for assessment" : ""}${skipped ? `, ${skipped} skipped` : ""}`);
+      }
       results.filter((r) => r.status !== "added").slice(0, 3).forEach((r) => toast(`${r.name || "Candidate"}: ${r.reason}`));
       onAdded();
       onClose();

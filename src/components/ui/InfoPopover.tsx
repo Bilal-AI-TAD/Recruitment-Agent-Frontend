@@ -10,8 +10,12 @@ const MARGIN = 8;
 /** A small button that shows a panel on hover, focus or tap (click pins it; Escape / outside click closes).
  *  The panel is rendered in a portal with fixed positioning, so it is never clipped by a scrolling table and never
  *  pushes the surrounding layout; it flips above the button when there is no room below. */
-export function InfoPopover({ label, children, className = "", panelClassName = "", testId }: {
-  label: React.ReactNode; children: React.ReactNode; className?: string; panelClassName?: string; testId?: string;
+export function InfoPopover({ label, children, className = "", panelClassName = "", testId, hover = true,
+  role = "tooltip", ariaLabel }: {
+  label: React.ReactNode; children: React.ReactNode | ((close: () => void) => React.ReactNode); className?: string;
+  panelClassName?: string; testId?: string;
+  /** false: opens on click / Enter only (e.g. an actions menu). */
+  hover?: boolean; role?: "tooltip" | "menu"; ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -56,6 +60,7 @@ export function InfoPopover({ label, children, className = "", panelClassName = 
     };
   }, [open, place]);
 
+  const close = () => { setOpen(false); setPinned(false); };
   const show = () => { if (hideTimer.current) clearTimeout(hideTimer.current); setOpen(true); };
   const hideSoon = () => {
     if (pinned) return;
@@ -65,20 +70,27 @@ export function InfoPopover({ label, children, className = "", panelClassName = 
 
   return (
     <>
-      <button ref={button} type="button" className={className} aria-expanded={open} aria-describedby={open ? id : undefined}
+      <button ref={button} type="button" className={className} aria-expanded={open} aria-label={ariaLabel}
+        aria-haspopup={role === "menu" ? "menu" : undefined}
+        aria-describedby={open && role === "tooltip" ? id : undefined} aria-controls={open ? id : undefined}
         data-testid={testId}
-        onMouseEnter={(e) => { if (e.nativeEvent instanceof MouseEvent) show(); }} onMouseLeave={hideSoon}
-        onFocus={show} onBlur={() => { if (!pinned) setOpen(false); }}
-        onClick={() => { setPinned((p) => !p || !open); setOpen((o) => !(o && pinned)); }}>
+        onMouseEnter={(e) => { if (hover && e.nativeEvent instanceof MouseEvent) show(); }}
+        onMouseLeave={hover ? hideSoon : undefined}
+        onFocus={hover ? show : undefined} onBlur={() => { if (hover && !pinned) setOpen(false); }}
+        onClick={() => {
+          if (!hover) { setPinned(true); setOpen((o) => !o); return; }
+          setPinned((p) => !p || !open); setOpen((o) => !(o && pinned));
+        }}>
         {label}
       </button>
       {open && typeof document !== "undefined" && createPortal(
-        <div ref={panel} id={id} role="tooltip" onMouseEnter={show} onMouseLeave={hideSoon}
+        <div ref={panel} id={id} role={role} onMouseEnter={hover ? show : undefined}
+          onMouseLeave={hover ? hideSoon : undefined}
           data-testid={testId ? `${testId}-panel` : undefined}
           style={{ position: "fixed", top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
           className={cn("z-[60] w-72 max-w-[calc(100vw-16px)] rounded-lg border border-yellow-500/40 bg-[#0F2236] p-3",
             "text-xs text-[#E0E0E0] shadow-xl", panelClassName)}>
-          {children}
+          {typeof children === "function" ? children(close) : children}
         </div>,
         document.body)}
     </>
