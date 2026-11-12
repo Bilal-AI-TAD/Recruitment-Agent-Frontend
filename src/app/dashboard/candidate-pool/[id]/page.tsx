@@ -12,6 +12,7 @@ import { openPoolDocument, poolAPI } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { PoolCandidateDetail, PoolDocument, PoolNote, ParsedDate } from "@/types";
+import { reasonText } from "@/components/StaleBadge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
@@ -403,7 +404,7 @@ export default function PoolCandidatePage() {
                       {a.assessment?.cv_version && <span>· CV v{a.assessment.cv_version}</span>}
                     </div>
                     {a.assessment?.stale_reasons?.length ? (
-                      <p className="text-xs text-yellow-300 mt-1">Out of date: {a.assessment.stale_reasons.map((r) => r.label).join("; ")}. Re-assess from the job.</p>
+                      <p className="text-xs text-yellow-300 mt-1">Out of date: {a.assessment.stale_reasons.map(reasonText).join("; ")}. Re-assess from the job.</p>
                     ) : null}
                     {a.processing_error && <p className="text-xs text-[#FF8A80] mt-1">{a.processing_error}</p>}
                     <Link href={`/dashboard/candidates/${a.candidate_id}`} className="text-xs text-[#00C853] hover:underline">View assessment</Link>

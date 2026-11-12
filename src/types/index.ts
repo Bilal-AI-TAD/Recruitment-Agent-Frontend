@@ -255,9 +255,17 @@ export interface Assessment {
   llm?: { provider?: string; model?: string };
 }
 
+export type StaleCode = "job_changed" | "newer_cv_version" | "profile_reextracted" | "scoring_changed" | "model_changed";
+
 export interface StaleReason {
-  code: "job_changed" | "newer_cv_version" | "profile_reextracted" | "scoring_changed" | "model_changed";
+  code: StaleCode;
   label: string;
+  /** Short name for counts, e.g. "job edited", "newer CV". */
+  short?: string;
+  /** The specific reason, e.g. "Required skills & qualifications edited on 12 Nov 2026 by Bilal Hassan Malik". */
+  detail?: string;
+  /** When it happened, if known (ISO). */
+  date?: string | null;
 }
 
 interface CandidateCore {
@@ -318,6 +326,9 @@ export interface JobRanking {
   job_title: string;
   total_candidates: number;
   status_counts: Record<ProcessingStatus, number>;
+  /** Out-of-date assessments, and how many have each reason (one can have several). */
+  stale_total?: number;
+  stale_breakdown?: Partial<Record<StaleCode, number>>;
   candidates: RankedCandidate[];
 }
 

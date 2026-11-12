@@ -16,6 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { candidatesAPI, openCandidateCV, scheduleAPI } from "@/lib/api";
 import { getErrorMessage, INTERVIEW_FEATURES_ENABLED } from "@/lib/utils";
 import { CandidateAssessment } from "@/types";
+import { reasonText } from "@/components/StaleBadge";
 import { formatUsd } from "@/lib/cost";
 import { useAiEstimate } from "@/lib/useAiEstimate";
 
@@ -333,7 +334,7 @@ export default function CandidateDetailPage() {
                   <p className="text-[#B0BEC5] text-sm">Match score out of 100</p>
                   {assessment.is_stale && (
                     <p className="text-xs text-yellow-300 mt-1">
-                      Out of date: {(assessment.stale_reasons || []).map((r) => r.label).join("; ") || "the job was edited"}. Re-assess to update it.
+                      Out of date: {(assessment.stale_reasons || []).map(reasonText).join("; ") || "the job was edited"}. Re-assess to update it.
                     </p>
                   )}
                 </div>
