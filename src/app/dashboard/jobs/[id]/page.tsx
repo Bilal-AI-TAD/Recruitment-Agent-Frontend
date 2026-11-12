@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, Database, Edit, FileSpreadsheet, FileText, Mail, Play, RefreshCw,
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, ChevronLeft, ChevronRight, MoreHorizontal, RotateCw, SearchX, UserMinus, Database, Edit, FileSpreadsheet, FileText, Mail, Play, RefreshCw,
   RotateCcw, Star, Info } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Card } from "@/components/ui/Card";
@@ -18,6 +18,10 @@ import { useAuth } from "@/context/AuthContext";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
 import { SelectBox } from "@/components/ui/SelectBox";
 import { StaleBadge, staleBreakdownText } from "@/components/StaleBadge";
+import { InfoPopover } from "@/components/ui/InfoPopover";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { RankingFiltersBar } from "@/components/ranking/RankingFiltersBar";
+import { applyFilters, NO_FILTERS, RankingFilters, readFilters, writeFilters } from "@/lib/rankingFilters";
 import { candidatesAPI, configAPI, downloadSelectedExport, jobsAPI, openCandidateCV, sharingAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { Job, JobRanking, RankedCandidate } from "@/types";
@@ -27,10 +31,28 @@ import { useAiEstimate } from "@/lib/useAiEstimate";
 const POLL_INTERVAL_MS = 3000;
 const PAGE_SIZE = 25;
 
+// useSearchParams (filters in the URL) needs a Suspense boundary in Next.js.
 export default function JobDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-4 border-[#00C853] border-t-transparent rounded-full animate-spin" /></div>}>
+      <JobDetailContent />
+    </Suspense>
+  );
+}
+
+function formatDay(value?: string | null) {
+  // "13 Nov 2026" - the same style as the out-of-date reasons.
+  return value ? new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+}
+
+function JobDetailContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const jobId = params.id as string;
+  const [removing, setRemoving] = useState<RankedCandidate | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [ranking, setRanking] = useState<JobRanking | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,6 +70,15 @@ export default function JobDetailPage() {
   // Selection for the Excel export: kept across pages and refreshes (never changes the candidates themselves).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
+  // Filters apply at once and are mirrored into the URL (no navigation), so a refresh or a shared link shows the
+  // same list.
+  const [filters, setFilterState] = useState<RankingFilters>(() => readFilters(searchParams));
+  const setFilters = (next: RankingFilters) => {
+    setFilterState(next);
+    setPage(1);
+    window.history.replaceState(null, "",
+      `${window.location.pathname}${writeFilters(new URLSearchParams(window.location.search), next)}`);
+  };
   const [exporting, setExporting] = useState(false);
   const [sharingEnabled, setSharingEnabled] = useState<boolean | null>(null);
 
@@ -109,10 +140,10 @@ export default function JobDetailPage() {
   });
 
   const handleExport = async () => {
-    if (!selected.size) return;
+    if (!exportIds.length) return;
     setExporting(true);
     try {
-      const order = (ranking?.candidates || []).map((c) => c.candidate_id).filter((id) => selected.has(id));
+      const order = exportIds;
       const filename = await downloadSelectedExport(jobId, order);
       toast.success(`Exported ${order.length} candidate${order.length === 1 ? "" : "s"} to ${filename}`);
     } catch (error) {
@@ -133,6 +164,36 @@ export default function JobDetailPage() {
       toast.error(getErrorMessage(error, "Action failed"));
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!removing || !job) return;
+    const target = removing;
+    setRemoveBusy(true);
+    try {
+      await candidatesAPI.removeFromJob(target.candidate_id);
+      setRemoving(null);
+      toast.success((t) => (
+        <span className="flex items-center gap-3" data-testid="removed-toast">
+          <span>Removed {target.name} from {job.title}. They&apos;re still in the Candidate Pool.</span>
+          <button type="button" className="font-semibold text-[#00C853] hover:underline" onClick={async () => {
+            toast.dismiss(t.id);
+            try {
+              await candidatesAPI.restoreToJob(target.candidate_id);
+              toast.success(`${target.name} is back in ${job.title}`);
+            } catch (error) {
+              toast.error(getErrorMessage(error, "Could not undo"));
+            }
+            await Promise.all([loadRanking(), loadJob()]);
+          }}>Undo</button>
+        </span>
+      ), { duration: 8000 });
+      await Promise.all([loadRanking(), loadJob()]);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not remove the candidate"));
+    } finally {
+      setRemoveBusy(false);
     }
   };
 
@@ -182,8 +243,13 @@ export default function JobDetailPage() {
   const candidates = ranking?.candidates || [];
   const staleCount = candidates.filter((c) => c.is_stale).length;
   const multiReason = candidates.some((c) => (c.stale_reasons || []).length > 1);
-  const pageCount = Math.max(1, Math.ceil(candidates.length / PAGE_SIZE));
-  const pageRows = candidates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filtered = applyFilters(candidates, filters);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // Export = the selected candidates that the filters show (selection outside the filters is kept, not exported).
+  const exportIds = filtered.map((c) => c.candidate_id).filter((id) => selected.has(id));
+  const hiddenSelected = selected.size - exportIds.length;
   const selectedOnPage = pageRows.filter((c) => selected.has(c.candidate_id)).length;
   const allOnPage = pageRows.length > 0 && selectedOnPage === pageRows.length;
   const selectPage = (on: boolean) => setSelected((prev) => {
@@ -337,6 +403,10 @@ export default function JobDetailPage() {
         )}
 
         {candidates.length > 0 && (
+          <RankingFiltersBar filters={filters} onChange={setFilters} shown={filtered.length} total={candidates.length} />
+        )}
+
+        {candidates.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3 rounded-lg border border-[#2A3F5E] bg-[#0A1929]/60 px-2 py-1"
             data-testid="selection-toolbar">
             <div className="flex flex-wrap items-center gap-2 text-sm text-[#B0BEC5]">
@@ -350,15 +420,21 @@ export default function JobDetailPage() {
               <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold",
                 selected.size ? "bg-[#00C853]/20 text-[#00C853]" : "bg-[#132F4C] text-[#B0BEC5]")} data-testid="selected-count"
                 aria-live="polite">
-                {selected.size} selected of {candidates.length}
+                {exportIds.length} selected of {filtered.length}
               </span>
+              {hiddenSelected > 0 && (
+                <span className="text-xs text-yellow-300" data-testid="hidden-selected">
+                  {hiddenSelected} selected {hiddenSelected === 1 ? "is" : "are"} hidden by filters and won&apos;t be exported
+                </span>
+              )}
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} disabled={!selected.size}>
                 Clear selection
               </Button>
             </div>
             <div className="flex flex-col items-end gap-0.5 py-1">
-              <Button size="sm" onClick={handleExport} disabled={!selected.size} isLoading={exporting}
-                title={selected.size ? "Download an Excel file of exactly the selected candidates" : "Select at least one candidate"}>
+              <Button size="sm" onClick={handleExport} disabled={!exportIds.length} isLoading={exporting}
+                title={exportIds.length ? "Download an Excel file of exactly the selected candidates shown"
+                  : "Select at least one candidate"}>
                 <FileSpreadsheet size={14} className="mr-1" />
                 Export selected to Excel
               </Button>
@@ -373,6 +449,13 @@ export default function JobDetailPage() {
 
         {candidates.length === 0 ? (
           <p className="text-[#B0BEC5] text-center py-8">No CVs imported yet. Upload CVs above to start.</p>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10 rounded-lg border border-dashed border-[#2A3F5E]" data-testid="filters-empty">
+            <SearchX size={28} className="mx-auto text-[#546E7A] mb-2" />
+            <p className="text-white font-medium">No candidates match these filters</p>
+            <p className="text-sm text-[#B0BEC5] mt-1">Try a wider date range, a lower minimum score or another shortlist status.</p>
+            <Button size="sm" variant="outline" className="mt-4" onClick={() => setFilters(NO_FILTERS)}>Clear filters</Button>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -410,6 +493,16 @@ export default function JobDetailPage() {
                       )}
                       {candidate.added_by_name && (
                         <p className="text-xs text-[#546E7A]" data-testid="added-by">Added by {candidate.added_by_name}</p>
+                      )}
+                      {candidate.previously_removed_at && (
+                        <span className="mt-1 inline-flex items-start gap-1 px-2 py-0.5 rounded-md text-xs bg-blue-500/15 text-blue-300 max-w-[320px]"
+                          data-testid="readded-tag"
+                          title={candidate.readded_at ? `Added back on ${formatDay(candidate.readded_at)}`
+                            + (candidate.readded_by_name ? ` by ${candidate.readded_by_name}` : "") : undefined}>
+                          <RotateCw size={11} className="mt-0.5 flex-shrink-0" aria-hidden="true" />
+                          Re-added – previously removed on {formatDay(candidate.previously_removed_at)}
+                          {candidate.previously_removed_by_name ? ` by ${candidate.previously_removed_by_name}` : ""}
+                        </span>
                       )}
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         <StatusBadge status={candidate.processing_status} />
@@ -519,6 +612,18 @@ export default function JobDetailPage() {
                             {candidate.shortlist ? "Shortlisted" : "Shortlist"}
                           </Button>
                         )}
+                        <InfoPopover hover={false} role="menu" testId="row-menu" ariaLabel={`More actions for ${candidate.name}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#B0BEC5] hover:bg-[#132F4C] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00C853]"
+                          panelClassName="w-52 p-1 border-[#2A3F5E]"
+                          label={<MoreHorizontal size={16} aria-hidden="true" />}>
+                          {(close) => (
+                            <button type="button" role="menuitem" data-testid="remove-from-job"
+                              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-[#FF8A80] hover:bg-[#FF5252]/10 focus:bg-[#FF5252]/10 focus:outline-none"
+                              onClick={() => { close(); setRemoving(candidate); }}>
+                              <UserMinus size={14} aria-hidden="true" /> Remove from job
+                            </button>
+                          )}
+                        </InfoPopover>
                       </div>
                     </td>
                     <td className="py-1.5 pl-2 text-center">
@@ -535,16 +640,22 @@ export default function JobDetailPage() {
 
         {pageCount > 1 && (
           <div className="flex items-center justify-center gap-3 mt-4 text-sm text-[#B0BEC5]" data-testid="ranking-pagination">
-            <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <Button size="sm" variant="ghost" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
               <ChevronLeft size={16} /> Previous
             </Button>
-            <span>Page {page} of {pageCount} · {candidates.length} candidates</span>
-            <Button size="sm" variant="ghost" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>
+            <span>Page {currentPage} of {pageCount} · {filtered.length} candidates</span>
+            <Button size="sm" variant="ghost" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>
               Next <ChevronRight size={16} />
             </Button>
           </div>
         )}
       </Card>
+      <ConfirmDialog open={removing !== null} busy={removeBusy} testId="remove-dialog"
+        title="Remove from job?"
+        message={<>Remove <span className="text-white font-medium">{removing?.name}</span> from{" "}
+          <span className="text-white font-medium">{job.title}</span>? They&apos;ll stay in the Candidate Pool, with their CV
+          and assessment, and can be added back later.</>}
+        confirmLabel="Remove from job" onConfirm={handleRemove} onCancel={() => setRemoving(null)} />
     </div>
   );
 }

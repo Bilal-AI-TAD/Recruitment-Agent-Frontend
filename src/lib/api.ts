@@ -143,6 +143,9 @@ export const candidatesAPI = {
   create: (data: Record<string, unknown>) => api.post("/candidates/", data),
   update: (candidateId: string, data: Record<string, unknown>) => api.patch(`/candidates/${candidateId}`, data),
   delete: (candidateId: string) => api.delete(`/candidates/${candidateId}`),
+  /** Take the application off its job (kept in the pool; can be added back). `restore` undoes it. */
+  removeFromJob: (candidateId: string) => api.post(`/candidates/${candidateId}/remove`),
+  restoreToJob: (candidateId: string) => api.post(`/candidates/${candidateId}/restore`),
   toggleShortlist: (candidateId: string) => api.patch(`/candidates/${candidateId}/shortlist`),
   assessment: (candidateId: string) => api.get(`/candidates/${candidateId}/assessment`),
   retry: (candidateId: string) => api.post(`/candidates/${candidateId}/retry`),

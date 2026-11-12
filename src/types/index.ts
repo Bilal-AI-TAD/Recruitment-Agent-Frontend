@@ -295,6 +295,11 @@ interface CandidateCore {
   analysis_requested_by_name?: string | null;
   analysis_requested_at?: string | null;
   shortlist_updated_by_name?: string | null;
+  /** Removed from this job earlier and added back: "Re-added - previously removed on ... by ...". */
+  previously_removed_at?: string | null;
+  previously_removed_by_name?: string | null;
+  readded_at?: string | null;
+  readded_by_name?: string | null;
   shortlist_updated_at?: string | null;
   updated_by_name?: string | null;
 }
@@ -302,6 +307,8 @@ interface CandidateCore {
 export interface RankedCandidate extends CandidateCore {
   rank: number | null;
   total_score: number | null;
+  /** When the current assessment was made (ISO); null when not assessed. */
+  assessed_at?: string | null;
   summary: string | null;
   strengths: AssessmentStrength[];
   missing_requirements: MissingRequirement[];
@@ -578,6 +585,9 @@ export interface PoolCandidateDetail {
   profile: PoolProfile | null;
   documents: PoolDocument[];
   applications: PoolApplication[];
+  /** Jobs this person was removed from (they can be added back). */
+  removed_from_jobs?: { candidate_id: string; job_id: string; job_title: string; job_open: boolean;
+                        removed_at: string | null; removed_by_name: string | null }[];
   notes: PoolNote[];
   identity_reviews: { review_id: string; reason: string; evidence: Record<string, unknown> | null;
                       other_candidate_id: string; other_name: string | null; created_at: string | null }[];

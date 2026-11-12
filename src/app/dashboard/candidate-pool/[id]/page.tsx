@@ -412,6 +412,19 @@ export default function PoolCandidatePage() {
                 ))}
               </ul>
             )}
+            {(data.removed_from_jobs || []).length > 0 && (
+              <div className="mt-4 border-t border-[#2A3F5E] pt-3" data-testid="removed-from-jobs">
+                <p className="text-xs text-[#B0BEC5] mb-1">Removed from (can be added back with “Find candidates in pool”):</p>
+                <ul className="space-y-1">
+                  {(data.removed_from_jobs || []).map((r) => (
+                    <li key={r.candidate_id} className="text-sm text-[#B0BEC5]">
+                      <Link href={`/dashboard/jobs/${r.job_id}`} className="text-white hover:text-[#00C853]">{r.job_title}</Link>
+                      {" "}– removed on {formatDate(r.removed_at)}{r.removed_by_name ? ` by ${r.removed_by_name}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
 
           <Card>
