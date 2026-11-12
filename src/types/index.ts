@@ -15,9 +15,19 @@ export interface AuthResponse {
   token_type: string;
 }
 
+/** An entry of the organisation's job title list (chosen in the job form instead of free text). */
+export interface JobTitle {
+  job_title_id: string;
+  name: string;
+  used_by: number;
+  archived: boolean;
+  archived_at?: string | null;
+}
+
 export interface Job {
   job_id: string;
   title: string;
+  job_title_id?: string | null;
   company?: string;
   location?: string;
   job_type?: string;

@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, MapPin, Briefcase, Users, Play, Trash2, Edit, X, FolderOpen, Clock } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Briefcase, Users, Play, Trash2, Edit, X, FolderOpen, Clock, Tags } from "lucide-react";
 import { CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { JobModal } from "@/components/JobModal";
+import { ManageJobTitles } from "@/components/jobs/ManageJobTitles";
 import { jobsAPI, otherAIFeaturesAPI, configAPI } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { Job } from "@/types";
@@ -270,6 +271,7 @@ export default function JobsPage() {
   const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [jobModalOpen, setJobModalOpen] = useState(false);
+  const [titlesOpen, setTitlesOpen] = useState(false);
   const [editJob, setEditJob] = useState<Job | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; job: Job | null }>({ isOpen: false, job: null });
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({
@@ -388,6 +390,7 @@ export default function JobsPage() {
         onSuccess={fetchJobs}
         editJob={editJob}
       />
+      <ManageJobTitles open={titlesOpen} onClose={() => setTitlesOpen(false)} onChanged={fetchJobs} />
       <ConfirmModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, job: null })}
@@ -400,13 +403,16 @@ export default function JobsPage() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-wrap items-center justify-between gap-3"
       >
         <div>
           <h1 className="text-2xl font-bold text-white">Jobs</h1>
           <p className="text-[#B0BEC5]">Create job openings, import CVs and review AI-ranked candidates</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline" onClick={() => setTitlesOpen(true)} data-testid="open-manage-titles">
+            <Tags size={16} className="mr-2" /> Manage job titles
+          </Button>
           {otherAIFeaturesEnabled && (
             <Button variant="outline" onClick={handleFetchJobs} isLoading={isFetching}>
               Sync from Other_AI_features

@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CvShareStatus, SharingSettings } from "@/types";
+import type { CvShareStatus, JobTitle, SharingSettings } from "@/types";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL
@@ -76,6 +76,23 @@ export const aiProvidersAPI = {
   test: (provider: string, model: string) => api.post(`/ai/providers/${provider}/test`, { model }),
   select: (provider: string, model: string) => api.put("/ai/selection", { provider, model }),
 };
+
+/** The organisation's job title list. A duplicate (ignoring case and spaces) answers 409 with the existing title. */
+export const jobTitlesAPI = {
+  list: (includeArchived = false) =>
+    api.get<{ job_titles: JobTitle[] }>("/job-titles", { params: { include_archived: includeArchived } }),
+  create: (name: string) => api.post<JobTitle>("/job-titles", { name }),
+  rename: (id: string, name: string, updateJobs: boolean) =>
+    api.patch<JobTitle & { jobs_renamed: number }>(`/job-titles/${id}`, { name, update_jobs: updateJobs }),
+  remove: (id: string) => api.delete<{ result: "archived" | "deleted"; used_by: number }>(`/job-titles/${id}`),
+  restore: (id: string) => api.post<JobTitle>(`/job-titles/${id}/restore`),
+};
+
+/** The title from a 409 "Already in the list" answer, if any. */
+export function duplicateTitle(error: unknown): JobTitle | null {
+  const detail = (error as { response?: { status?: number; data?: { detail?: { job_title?: JobTitle } } } })?.response;
+  return detail?.status === 409 ? detail.data?.detail?.job_title || null : null;
+}
 
 export const jobsAPI = {
   getAll: () => api.get("/jobs/"),
