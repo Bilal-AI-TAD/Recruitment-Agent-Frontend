@@ -20,6 +20,8 @@ interface JobModalProps {
   onClose: () => void;
   onSuccess: () => void;
   editJob?: Job | null;
+  /** Open scrolled to a section (e.g. "requirements" from the job page's lists) instead of the title. */
+  focusSection?: "requirements";
 }
 
 type Form = {
@@ -90,7 +92,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 /** Create / edit a job: a large dialog (full screen on small screens) with grouped sections, growing text areas,
  *  a sticky footer, validation, an unsaved-changes guard and keyboard support (Esc, Ctrl/Cmd+Enter, focus trap). */
-export function JobModal({ isOpen, onClose, onSuccess, editJob }: JobModalProps) {
+export function JobModal({ isOpen, onClose, onSuccess, editJob, focusSection }: JobModalProps) {
   const uid = useId();
   const ids = (name: string) => `${uid}-${name}`;
   const [form, setForm] = useState<Form>(emptyForm);
@@ -123,9 +125,17 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob }: JobModalProps)
     setSubmitted(false);
     loadTitles();
     opener.current = document.activeElement as HTMLElement | null;
-    setTimeout(() => document.getElementById(`${uid}-job_title_id`)?.focus(), 30);
+    if (focusSection) {             // after the opening animation, so the target is laid out
+      setTimeout(() => {
+        const target = document.getElementById(`${uid}-requirement-lists`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+        target?.focus({ preventScroll: true });
+      }, 250);
+    } else {
+      setTimeout(() => document.getElementById(`${uid}-job_title_id`)?.focus(), 30);
+    }
     return () => { opener.current?.focus?.(); };
-  }, [isOpen, editJob, loadTitles, uid]);
+  }, [isOpen, editJob, loadTitles, uid, focusSection]);
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const requirementInputs = useMemo(() => ({
@@ -301,7 +311,7 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob }: JobModalProps)
             </div>
             {aiStatus !== "idle" && (
               <button type="button" data-testid="ai-status-chip"
-                onClick={() => document.getElementById(ids("requirements"))?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                onClick={() => document.getElementById(ids("requirement-lists"))?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 className={cn("mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors",
                   aiStatus === "running" ? "ai-glow border-transparent text-[#B9F6CA]"
                     : aiStatus === "failed" ? "border-[#FF5252]/40 text-[#FFCDD2] hover:bg-[#FF5252]/10"
@@ -339,7 +349,8 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob }: JobModalProps)
             <FieldError id={ids("required_experience-error")} message={showError("required_experience")} />
           </Section>
 
-          <div id={ids("requirements")} className="scroll-mt-4" />
+          {/* not ids("requirements"): that is the Required skills field */}
+          <div id={ids("requirement-lists")} tabIndex={-1} className="scroll-mt-4 outline-none" aria-label="Must-Have and Nice-to-Have requirements" />
           <Section icon={<ListChecks size={18} />} title="Must-Have & Nice-to-Have requirements"
             hint="Optional. Saving the job never waits for the AI." testId="section-requirements">
             <RequirementLists must={form.must} nice={form.nice} generation={form.generation} mode={editJob ? "edit" : "create"}

@@ -14,6 +14,7 @@ import { PoolPickerModal } from "@/components/pool/PoolPickerModal";
 import { MailImportModal } from "@/components/mail/MailImportModal";
 import { MailImportHistory } from "@/components/mail/MailImportHistory";
 import { HeadhuntingCard } from "@/components/headhunting/HeadhuntingCard";
+import { RequirementListsView } from "@/components/jobs/RequirementListsView";
 import { useAuth } from "@/context/AuthContext";
 import { MISSING_STATUS_LABELS, ScoreBadge, StatusBadge } from "@/components/CandidateStatus";
 import { SelectBox } from "@/components/ui/SelectBox";
@@ -57,6 +58,7 @@ function JobDetailContent() {
   const [ranking, setRanking] = useState<JobRanking | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [editFocus, setEditFocus] = useState<"requirements" | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
   const estimate = useAiEstimate();
   const [processing, setProcessing] = useState(false);
@@ -271,9 +273,10 @@ function JobDetailContent() {
       )}
       <JobModal
         isOpen={editOpen}
-        onClose={() => setEditOpen(false)}
+        onClose={() => { setEditOpen(false); setEditFocus(undefined); }}
         onSuccess={() => { loadJob(); loadRanking(); }}
         editJob={job}
+        focusSection={editFocus}
       />
 
       <div className="flex items-start justify-between gap-4">
@@ -355,6 +358,8 @@ function JobDetailContent() {
             onOpen={canImportMail ? (runId) => { setMailRunId(runId); setMailImportOpen(true); } : undefined} />
         </Card>
       </div>
+
+      <RequirementListsView job={job} onEdit={() => { setEditFocus("requirements"); setEditOpen(true); }} />
 
       <HeadhuntingCard jobId={jobId} jobLocation={job.location} isOpen={isOpen} />
 

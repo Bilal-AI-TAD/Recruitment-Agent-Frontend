@@ -39,7 +39,7 @@ export const TYPES: { value: RequirementType; label: string; icon: React.Element
   { value: "other", label: "Other", icon: Tag },
 ];
 const TYPE = Object.fromEntries(TYPES.map((t) => [t.value, t]));
-const FIELD_LABELS: Record<string, string> = {
+export const FIELD_LABELS: Record<string, string> = {
   job_title: "Job title", job_description: "Job description", required_skills: "Required skills & qualifications",
   required_experience: "Required experience", location: "Location", job_type: "Job type",
 };
@@ -63,7 +63,7 @@ export function inputsChanged(inputs: RequirementInputs, generation?: Requiremen
   return (Object.keys(inputs) as (keyof RequirementInputs)[]).some((k) => squash(inputs[k]) !== squash(source[k]));
 }
 
-function TypeBadge({ type }: { type: RequirementType }) {
+export function TypeBadge({ type }: { type: RequirementType }) {
   const t = TYPE[type] || TYPE.other;
   const Icon = t.icon;
   return (
