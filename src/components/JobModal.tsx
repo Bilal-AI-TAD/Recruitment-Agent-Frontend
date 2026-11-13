@@ -1,37 +1,37 @@
 "use client";
 
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { Briefcase, ClipboardList, FileText, GraduationCap, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, Briefcase, CheckCircle2, ClipboardList, FileText, GraduationCap, ListChecks, Loader2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { AutoTextarea } from "@/components/ui/AutoTextarea";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { JobTitlePicker } from "@/components/jobs/JobTitlePicker";
 import { ManageJobTitles } from "@/components/jobs/ManageJobTitles";
+import { RequirementLists } from "@/components/jobs/RequirementLists";
 import { jobsAPI, jobTitlesAPI } from "@/lib/api";
 import { cn, getErrorMessage } from "@/lib/utils";
-import { Job, JobTitle } from "@/types";
+import { Job, JobTitle, RequirementItem, RequirementsGeneration } from "@/types";
 
 interface JobModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   editJob?: Job | null;
-  /** Reserved for the AI must-have / nice-to-have requirement lists (a later release); nothing is shown yet. */
-  requirementsSlot?: React.ReactNode;
 }
 
 type Form = {
   job_title_id: string; about_role: string; requirements: string; required_experience: string;
   job_available: boolean; location: string; job_type: string; open_positions: number;
+  must: RequirementItem[]; nice: RequirementItem[]; generation: RequirementsGeneration | null;
 };
 type FieldName = "job_title_id" | "about_role" | "requirements" | "required_experience" | "open_positions";
 
 const emptyForm: Form = {
   job_title_id: "", about_role: "", requirements: "", required_experience: "", job_available: true, location: "",
-  job_type: "Full-time", open_positions: 1,
+  job_type: "Full-time", open_positions: 1, must: [], nice: [], generation: null,
 };
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship", "Remote"];
 const input = "w-full rounded-lg border bg-[#132F4C] px-4 py-2.5 text-white placeholder-[#546E7A] focus:outline-none focus:border-[#00C853] focus:ring-1 focus:ring-[#00C853]/40";
@@ -43,6 +43,8 @@ function fromJob(job?: Job | null): Form {
     job_title_id: job.job_title_id || "", about_role: job.about_role || "", requirements: job.requirements || "",
     required_experience: job.required_experience || "", job_available: job.job_available !== false,
     location: job.location || "", job_type: job.job_type || "Full-time", open_positions: job.open_positions || 1,
+    must: job.must_have_requirements || [], nice: job.nice_to_have_requirements || [],
+    generation: job.requirements_generation || null,
   };
 }
 
@@ -88,7 +90,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 /** Create / edit a job: a large dialog (full screen on small screens) with grouped sections, growing text areas,
  *  a sticky footer, validation, an unsaved-changes guard and keyboard support (Esc, Ctrl/Cmd+Enter, focus trap). */
-export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot }: JobModalProps) {
+export function JobModal({ isOpen, onClose, onSuccess, editJob }: JobModalProps) {
   const uid = useId();
   const ids = (name: string) => `${uid}-${name}`;
   const [form, setForm] = useState<Form>(emptyForm);
@@ -99,6 +101,8 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
   const [titles, setTitles] = useState<JobTitle[]>([]);
   const [manageOpen, setManageOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [autoSignal, setAutoSignal] = useState(0);     // "the description is written": may trigger AI lists
+  const [aiStatus, setAiStatus] = useState<"idle" | "running" | "done" | "failed">("idle");
   const dialog = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
 
@@ -124,6 +128,19 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
   }, [isOpen, editJob, loadTitles, uid]);
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
+  const requirementInputs = useMemo(() => ({
+    title: titles.find((t) => t.job_title_id === form.job_title_id)?.name || editJob?.title || "",
+    about_role: form.about_role, requirements: form.requirements, required_experience: form.required_experience,
+    location: form.location, job_type: form.job_type,
+  }), [titles, form.job_title_id, editJob?.title, form.about_role, form.requirements, form.required_experience,
+    form.location, form.job_type]);
+
+  // Stopping typing in the description for a moment also counts as "finished writing it".
+  useEffect(() => {
+    if (!isOpen || editJob) return;
+    const timer = setTimeout(() => setAutoSignal((n) => n + 1), 2500);
+    return () => clearTimeout(timer);
+  }, [form.about_role, isOpen, editJob]);
   const errors = validate(form);
   const showError = (name: FieldName) => (submitted || touched[name]) ? errors[name] : undefined;
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -142,7 +159,11 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
       return;
     }
     setIsLoading(true);
+    const hadLists = Boolean(editJob?.must_have_requirements || editJob?.nice_to_have_requirements);
+    const withLists = hadLists || form.must.length + form.nice.length > 0 || form.generation !== null;
     const payload = {
+      ...(withLists ? { must_have_requirements: form.must, nice_to_have_requirements: form.nice,
+        requirements_generation: form.generation } : {}),
       job_title_id: form.job_title_id, about_role: form.about_role.trim(), requirements: form.requirements.trim(),
       required_experience: form.required_experience.trim(), job_available: form.job_available,
       location: form.location.trim() || null, job_type: form.job_type || null, open_positions: form.open_positions,
@@ -206,7 +227,7 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
         className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <motion.div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={ids("heading")} data-testid="job-modal"
         initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.18 }}
-        className="relative flex h-full w-full flex-col overflow-hidden bg-[#1a2a3a] shadow-2xl md:h-[min(92vh,980px)] md:max-w-[1100px] md:rounded-2xl md:border md:border-[#2A3F5E]">
+        className="relative flex h-full w-full flex-col overflow-clip bg-[#1a2a3a] shadow-2xl md:h-[min(92vh,980px)] md:max-w-[1100px] md:rounded-2xl md:border md:border-[#2A3F5E]">
         <header className="flex items-start justify-between gap-4 border-b border-[#2A3F5E] bg-[#1a2a3a]/95 px-5 py-4 sm:px-7">
           <div>
             <h3 id={ids("heading")} className="text-xl font-semibold text-white">{editJob ? "Edit job" : "Create a new job"}</h3>
@@ -269,7 +290,8 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
           <Section icon={<FileText size={18} />} title="Job description" hint="What the role is about and its main responsibilities." testId="section-description">
             <Label htmlFor={ids("about_role")} required>Description</Label>
             <AutoTextarea id={ids("about_role")} value={form.about_role} minRows={6}
-              onChange={(e) => set("about_role", e.target.value)} onBlur={() => touch("about_role")}
+              onChange={(e) => set("about_role", e.target.value)}
+              onBlur={() => { touch("about_role"); setAutoSignal((n) => n + 1); }}
               placeholder="Describe the role, the team and the main responsibilities…"
               aria-invalid={Boolean(showError("about_role")) || undefined} aria-describedby={ids("about_role-error")}
               className={cn(input, "leading-relaxed", fieldBorder("about_role"))} data-testid="field-about_role" />
@@ -277,6 +299,21 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
               <FieldError id={ids("about_role-error")} message={showError("about_role")} />
               <span className="ml-auto mt-1 text-xs text-[#546E7A]">{form.about_role.length} characters</span>
             </div>
+            {aiStatus !== "idle" && (
+              <button type="button" data-testid="ai-status-chip"
+                onClick={() => document.getElementById(ids("requirements"))?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className={cn("mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors",
+                  aiStatus === "running" ? "ai-glow border-transparent text-[#B9F6CA]"
+                    : aiStatus === "failed" ? "border-[#FF5252]/40 text-[#FFCDD2] hover:bg-[#FF5252]/10"
+                      : "border-[#00C853]/40 text-[#B9F6CA] hover:bg-[#00C853]/10")}>
+                {aiStatus === "running" ? <Loader2 size={12} className="animate-spin" />
+                  : aiStatus === "failed" ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
+                {aiStatus === "running" ? "AI is drafting the Must-Have / Nice-to-Have lists…"
+                  : aiStatus === "failed" ? "The AI could not draft the lists – add them by hand"
+                    : "Must-Have / Nice-to-Have lists drafted – review them"}
+                <span className="inline-flex items-center gap-0.5 font-medium">View <ArrowDown size={11} /></span>
+              </button>
+            )}
           </Section>
 
           <Section icon={<ClipboardList size={18} />} title="Required skills & qualifications" hint="Skills, systems, certificates, licences and education the job needs." testId="section-skills">
@@ -302,8 +339,14 @@ export function JobModal({ isOpen, onClose, onSuccess, editJob, requirementsSlot
             <FieldError id={ids("required_experience-error")} message={showError("required_experience")} />
           </Section>
 
-          {/* Reserved: AI-generated must-have / nice-to-have requirement lists (later release). */}
-          {requirementsSlot ? <div data-testid="requirements-slot">{requirementsSlot}</div> : null}
+          <div id={ids("requirements")} className="scroll-mt-4" />
+          <Section icon={<ListChecks size={18} />} title="Must-Have & Nice-to-Have requirements"
+            hint="Optional. Saving the job never waits for the AI." testId="section-requirements">
+            <RequirementLists must={form.must} nice={form.nice} generation={form.generation} mode={editJob ? "edit" : "create"}
+              jobId={editJob?.job_id} autoSignal={autoSignal} inputs={requirementInputs}
+              onChange={({ must, nice, generation }) => setForm((f) => ({ ...f, must, nice, generation }))}
+              onStatus={setAiStatus} />
+          </Section>
         </form>
 
         <footer className="flex flex-col-reverse gap-3 border-t border-[#2A3F5E] bg-[#1a2a3a]/95 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7"

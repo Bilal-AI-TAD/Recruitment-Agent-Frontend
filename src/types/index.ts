@@ -16,6 +16,40 @@ export interface AuthResponse {
 }
 
 /** An entry of the organisation's job title list (chosen in the job form instead of free text). */
+export type RequirementType = "experience_years" | "skill" | "licence_certification" | "degree" | "location_visa"
+  | "industry_sector" | "language" | "other";
+
+/** One Must-Have / Nice-to-Have requirement (AI-generated from the job description, or written by HR). */
+export interface RequirementItem {
+  id: string;
+  text: string;
+  type: RequirementType;
+  source?: string | null;          // the job's own words it came from (AI items)
+  source_field?: string | null;    // which field: job_description, required_skills ...
+  origin: "ai" | "user";
+  edited?: boolean;
+}
+
+export interface RequirementsGeneration {
+  generated_at?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  prompt_version?: string | null;
+  cost_usd?: number | null;
+  request_ref?: string | null;
+  source?: Record<string, string | null> | null;   // the inputs used, to notice a later change
+}
+
+export interface RequirementsReadiness {
+  ready: boolean;
+  blockers: { code: string; message: string }[];
+  provider?: string | null;
+  model?: string | null;
+  estimate_usd?: number | null;
+  estimate_basis?: string;
+  min_input_chars: number;
+}
+
 export interface JobTitle {
   job_title_id: string;
   name: string;
@@ -28,6 +62,9 @@ export interface Job {
   job_id: string;
   title: string;
   job_title_id?: string | null;
+  must_have_requirements?: RequirementItem[] | null;
+  nice_to_have_requirements?: RequirementItem[] | null;
+  requirements_generation?: RequirementsGeneration | null;
   company?: string;
   location?: string;
   job_type?: string;

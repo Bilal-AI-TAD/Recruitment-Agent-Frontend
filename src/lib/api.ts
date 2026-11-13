@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CvShareStatus, JobTitle, SharingSettings } from "@/types";
+import type { CvShareStatus, JobTitle, RequirementsReadiness, SharingSettings } from "@/types";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL
@@ -78,6 +78,11 @@ export const aiProvidersAPI = {
 };
 
 /** The organisation's job title list. A duplicate (ignoring case and spaces) answers 409 with the existing title. */
+export const jobRequirementsAPI = {
+  readiness: () => api.get<RequirementsReadiness>("/job-requirements/readiness"),
+  // generation itself is streamed: see streamAgent() in lib/agentStream.ts ("/job-requirements/generate")
+};
+
 export const jobTitlesAPI = {
   list: (includeArchived = false) =>
     api.get<{ job_titles: JobTitle[] }>("/job-titles", { params: { include_archived: includeArchived } }),
